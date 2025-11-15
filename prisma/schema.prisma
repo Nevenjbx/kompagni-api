@@ -1,0 +1,143 @@
+// ==============================================
+// CONFIGURATION PRISMA
+// ==============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==============================================
+// ENUMS (Types énumérés)
+// ==============================================
+
+enum Role {
+  CLIENT      // Propriétaire d'animal
+  PROVIDER    // Prestataire (toiletteur, véto, etc.)
+  ADMIN       // Administrateur
+}
+
+enum AppointmentStatus {
+  PENDING     // En attente de confirmation
+  CONFIRMED   // Confirmé
+  COMPLETED   // Terminé
+  CANCELLED   // Annulé
+}
+
+enum AnimalType {
+  DOG         // Chien
+  CAT         // Chat
+  OTHER       // Autre
+}
+
+// ==============================================
+// MODÈLES (Tables)
+// ==============================================
+
+// Table des utilisateurs (clients et prestataires)
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String    // Hashé avec bcrypt
+  firstName     String
+  lastName      String
+  phone         String?
+  role          Role      @default(CLIENT)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  providerProfile ProviderProfile? // Si prestataire
+  appointments    Appointment[]    // Rendez-vous pris (si client) ou reçus (si prestataire)
+  
+  @@map("users")
+}
+
+// Profil prestataire (toiletteur, véto, etc.)
+model ProviderProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  businessName    String   // Nom du salon/cabinet
+  description     String?
+  address         String
+  city            String
+  postalCode      String
+  latitude        Float?
+  longitude       Float?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  services        Service[]
+  workingHours    WorkingHours[]
+  appointments    Appointment[]
+  
+  @@map("provider_profiles")
+}
+
+// Services proposés par les prestataires
+model Service {
+  id              String      @id @default(uuid())
+  providerId      String
+  name            String      // Ex: "Toilettage complet chien"
+  description     String?
+  duration        Int         // Durée en minutes
+  price           Float       // Prix en euros
+  animalType      AnimalType
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  // Relations
+  provider        ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  appointments    Appointment[]
+  
+  @@map("services")
+}
+
+// Horaires de travail des prestataires
+model WorkingHours {
+  id              String   @id @default(uuid())
+  providerId      String
+  dayOfWeek       Int      // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
+  startTime       String   // Format "09:00"
+  endTime         String   // Format "18:00"
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  provider        ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  
+  @@map("working_hours")
+}
+
+// Rendez-vous
+model Appointment {
+  id              String             @id @default(uuid())
+  clientId        String
+  providerId      String
+  serviceId       String
+  
+  startTime       DateTime
+  endTime         DateTime
+  status          AppointmentStatus  @default(PENDING)
+  notes           String?            // Notes du client
+  
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  
+  // Relations
+  client          User               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  provider        ProviderProfile    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  service         Service            @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  
+  @@map("appointments")
+}
