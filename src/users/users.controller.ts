@@ -10,8 +10,4 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
-  @Get('test')
-  async createTestUser() {
-    return this.usersService.createTestUser();
-  }
 }

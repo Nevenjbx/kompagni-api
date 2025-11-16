@@ -9,16 +9,7 @@ export class UsersService {
     return this.prisma.user.findMany();
   }
 
-  async createTestUser() {
-    return this.prisma.user.create({
-      data: {
-        email: 'test@example.com',
-        password: 'hashedpassword',
-        firstName: 'Test',
-        lastName: 'User',
-        phone: null,
-        role: 'CLIENT',
-      },
-    });
+  async findById(id: string) {
+    return this.prisma.user.findUnique({ where: { id } });
   }
 }
