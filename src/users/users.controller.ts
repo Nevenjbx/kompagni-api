@@ -12,7 +12,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 @UseGuards(AuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class UsersController {
-  constructor(private usersService: UsersService) { }
+  constructor(private usersService: UsersService) {}
 
   @Get()
   @Roles(Role.ADMIN)
@@ -20,5 +20,4 @@ export class UsersController {
   async getAll() {
     return this.usersService.findAll();
   }
-
 }

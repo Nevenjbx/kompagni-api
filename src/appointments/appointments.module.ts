@@ -5,8 +5,8 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { SupabaseModule } from '../supabase/supabase.module';
 
 @Module({
-    imports: [PrismaModule, SupabaseModule],
-    controllers: [AppointmentsController],
-    providers: [AppointmentsService],
+  imports: [PrismaModule, SupabaseModule],
+  controllers: [AppointmentsController],
+  providers: [AppointmentsService],
 })
-export class AppointmentsModule { }
+export class AppointmentsModule {}

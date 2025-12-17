@@ -5,9 +5,9 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { SupabaseModule } from '../supabase/supabase.module';
 
 @Module({
-    imports: [PrismaModule, SupabaseModule],
-    controllers: [ProvidersController],
-    providers: [ProvidersService],
-    exports: [ProvidersService],
+  imports: [PrismaModule, SupabaseModule],
+  controllers: [ProvidersController],
+  providers: [ProvidersService],
+  exports: [ProvidersService],
 })
-export class ProvidersModule { }
+export class ProvidersModule {}

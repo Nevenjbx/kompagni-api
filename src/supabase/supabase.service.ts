@@ -16,6 +16,7 @@ export class SupabaseService {
       throw new Error('Supabase is not configured properly');
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     this.supabase = createClient(url, key);
   }
 

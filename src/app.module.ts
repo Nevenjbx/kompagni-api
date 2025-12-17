@@ -9,8 +9,6 @@ import { ServicesModule } from './services/services.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 
-
-
 @Module({
   imports: [
     PrismaModule,
@@ -23,7 +21,5 @@ import { NotificationsModule } from './notifications/notifications.module';
   ],
   controllers: [AppController],
   providers: [AppService],
-
 })
-export class AppModule { }
-
+export class AppModule {}
