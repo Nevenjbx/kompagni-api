@@ -15,6 +15,7 @@ import {
   ApiBearerAuth,
   ApiQuery,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AppointmentsService } from './appointments.service';
 import {
   CreateAppointmentDto,
@@ -27,6 +28,7 @@ import { AuthenticatedRequest } from '../common/interfaces/authenticated-request
 @Controller('appointments')
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
+@Throttle({ default: { ttl: 60000, limit: 20 } }) // Stricter: 20 requests/minute for appointments
 export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
