@@ -102,4 +102,14 @@ export class WorkingHoursDto {
   @IsString()
   @IsNotEmpty()
   endTime: string; // "18:00"
+
+  @ApiProperty({ example: '12:00', required: false })
+  @IsString()
+  @IsOptional()
+  breakStartTime?: string;
+
+  @ApiProperty({ example: '13:00', required: false })
+  @IsString()
+  @IsOptional()
+  breakEndTime?: string;
 }
