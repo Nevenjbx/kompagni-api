@@ -9,6 +9,7 @@ import {
     Request,
     Query,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AppointmentsService } from './appointments.service';
 import {
     CreateAppointmentDto,
@@ -16,17 +17,24 @@ import {
 } from './dto/appointment.dto';
 import { AuthGuard } from '../common/guards/auth.guard';
 
+@ApiTags('Appointments')
 @Controller('appointments')
 @UseGuards(AuthGuard)
+@ApiBearerAuth()
 export class AppointmentsController {
     constructor(private readonly appointmentsService: AppointmentsService) { }
 
     @Post()
+    @ApiOperation({ summary: 'Book an appointment' })
     create(@Request() req, @Body() createAppointmentDto: CreateAppointmentDto) {
         return this.appointmentsService.create(req.user.id, createAppointmentDto);
     }
 
     @Get('available-slots')
+    @ApiOperation({ summary: 'Get available time slots' })
+    @ApiQuery({ name: 'providerId' })
+    @ApiQuery({ name: 'serviceId' })
+    @ApiQuery({ name: 'date', description: 'YYYY-MM-DD' })
     getAvailableSlots(
         @Query('providerId') providerId: string,
         @Query('serviceId') serviceId: string,
@@ -36,31 +44,19 @@ export class AppointmentsController {
     }
 
     @Get()
+    @ApiOperation({ summary: 'Get my appointments (Client or Provider)' })
     findAll(@Request() req) {
-        // Determine context based on user role or request
-        // Prisma User has a "role" field. We can use that.
-        // req.user comes from Supabase, but our Prisma DB has the role.
-        // However, the AuthGuard attaches the Supabase user object. 
-        // We might need to fetch the Prisma user to know the role...
-        // Or we just return all appointments where user is client OR provider?
-
-        // For simplicity, let's assume we fetch both lists or check the role from the token metadata if available.
-        // But since we don't have role in Supabase metadata ensured, let's fetch based on "Find appointments where I am client OR provider".
-        // Actually, Service method takes a role arg. Let's make it smarter or just pass 'CLIENT' by default?
-        // Let's improve the service to check "Where clientId = me OR provider.userId = me".
-
-        // For now, I'll update the controller to try both or rely on a query param? No, that's insecure.
-        // I will refactor the service slightly to handle "My Appointments" regardless of role.
-
         return this.appointmentsService.findAllMy(req.user.id);
     }
 
     @Get(':id')
+    @ApiOperation({ summary: 'Get appointment details' })
     findOne(@Param('id') id: string) {
         return this.appointmentsService.findOne(id);
     }
 
     @Patch(':id/status')
+    @ApiOperation({ summary: 'Update appointment status' })
     updateStatus(
         @Request() req,
         @Param('id') id: string,
