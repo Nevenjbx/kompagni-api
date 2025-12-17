@@ -7,9 +7,20 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { ProvidersModule } from './providers/providers.module';
 import { ServicesModule } from './services/services.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { NotificationsModule } from './notifications/notifications.module';
+
+
 
 @Module({
-  imports: [PrismaModule, UsersModule, SupabaseModule, ProvidersModule, ServicesModule, AppointmentsModule],
+  imports: [
+    PrismaModule,
+    UsersModule,
+    SupabaseModule,
+    ProvidersModule,
+    ServicesModule,
+    AppointmentsModule,
+    NotificationsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 

@@ -7,6 +7,7 @@ import {
     Param,
     UseGuards,
     Request,
+    Query,
 } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import {
@@ -23,6 +24,15 @@ export class AppointmentsController {
     @Post()
     create(@Request() req, @Body() createAppointmentDto: CreateAppointmentDto) {
         return this.appointmentsService.create(req.user.id, createAppointmentDto);
+    }
+
+    @Get('available-slots')
+    getAvailableSlots(
+        @Query('providerId') providerId: string,
+        @Query('serviceId') serviceId: string,
+        @Query('date') date: string,
+    ) {
+        return this.appointmentsService.getAvailableSlots(providerId, serviceId, date);
     }
 
     @Get()

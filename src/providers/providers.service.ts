@@ -76,4 +76,30 @@ export class ProvidersService {
             throw new NotFoundException('Provider profile not found');
         }
     }
+
+    async search(dto: import('./dto/search.dto').SearchProviderDto) {
+        const { q, animalType } = dto;
+        const where: any = {};
+
+        if (q) {
+            where.OR = [
+                { businessName: { contains: q, mode: 'insensitive' } },
+                { city: { contains: q, mode: 'insensitive' } },
+                { postalCode: { contains: q } },
+            ];
+        }
+
+        if (animalType) {
+            where.services = {
+                some: {
+                    animalType: animalType as any, // Cast to AnimalType enum if needed
+                },
+            };
+        }
+
+        return this.prisma.providerProfile.findMany({
+            where,
+            include: { services: true },
+        });
+    }
 }
