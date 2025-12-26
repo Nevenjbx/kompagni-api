@@ -32,8 +32,24 @@ export class UsersController {
   @ApiOperation({ summary: 'Sync Supabase user to Prisma' })
   async syncUser(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { role: Role },
+    @Body() body: {
+      role: Role;
+      name?: string;
+      providerProfile?: {
+        businessName: string;
+        description?: string;
+        address: string;
+        city: string;
+        postalCode: string;
+      };
+    },
   ) {
-    return this.usersService.syncUser(req.user.id, req.user.email!, body.role);
+    return this.usersService.syncUser(
+      req.user.id,
+      req.user.email!,
+      body.role,
+      body.name,
+      body.providerProfile,
+    );
   }
 }

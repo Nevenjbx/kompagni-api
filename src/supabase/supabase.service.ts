@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
+import * as jwt from 'jsonwebtoken';
 
 @Injectable()
 export class SupabaseService {
@@ -38,6 +39,27 @@ export class SupabaseService {
     // console.log('SupabaseService: Token verified for user:', data.user.id);
 
     return data.user;
+  }
+
+  async verifyTokenLocal(token: string): Promise<{ sub: string; email?: string, app_metadata?: any, user_metadata?: any } | null> {
+    const secret = this.config.get<string>('SUPABASE_JWT_SECRET');
+    if (!secret) {
+      this.logger.warn('SUPABASE_JWT_SECRET is not set. Skipping local verification.');
+      return null;
+    }
+
+    try {
+      const decoded = jwt.verify(token, secret) as any;
+      return {
+        sub: decoded.sub,
+        email: decoded.email,
+        app_metadata: decoded.app_metadata,
+        user_metadata: decoded.user_metadata,
+      };
+    } catch (e) {
+      this.logger.warn(`Local token verification failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      return null;
+    }
   }
 
   async adminDeleteUser(userId: string) {
