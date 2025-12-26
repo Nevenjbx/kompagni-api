@@ -31,8 +31,11 @@ export class SupabaseService {
 
     if (error) {
       this.logger.warn(`Token validation failed: ${error.message}`);
+      console.log('SupabaseService: Full error:', error);
       return null;
     }
+
+    // console.log('SupabaseService: Token verified for user:', data.user.id);
 
     return data.user;
   }
