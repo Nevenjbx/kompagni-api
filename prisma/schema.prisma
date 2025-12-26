@@ -54,8 +54,42 @@ model User {
   // Relations
   providerProfile ProviderProfile? // Si prestataire
   appointments    Appointment[]    // Rendez-vous pris (si client) ou reçus (si prestataire)
+  pets            Pet[]
   
   @@map("users")
+}
+
+enum PetSize {
+  SMALL
+  MEDIUM
+  LARGE
+  GIANT
+}
+
+enum PetCharacter {
+  HAPPY
+  ANGRY
+  CALM
+  SCARED
+  ENERGETIC
+}
+
+model Pet {
+  id        String       @id @default(uuid())
+  ownerId   String
+  name      String
+  type      AnimalType
+  breed     String
+  size      PetSize
+  character PetCharacter
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@map("pets")
 }
 
 // Profil prestataire (toiletteur, véto, etc.)

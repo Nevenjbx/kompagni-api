@@ -10,6 +10,7 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { ProvidersModule } from './providers/providers.module';
 import { ServicesModule } from './services/services.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { PetsModule } from './pets/pets.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { HealthModule } from './health/health.module';
 import { validateEnv } from './config/config.validation';
@@ -34,6 +35,7 @@ import { validateEnv } from './config/config.validation';
     ProvidersModule,
     ServicesModule,
     AppointmentsModule,
+    PetsModule,
     NotificationsModule,
     HealthModule,
   ],
@@ -46,4 +48,4 @@ import { validateEnv } from './config/config.validation';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
