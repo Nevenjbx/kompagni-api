@@ -28,10 +28,12 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
+import { CreateWorkingHoursDto } from './dto/create-working-hours.dto';
+
 @ApiTags('Providers')
 @Controller('providers')
 export class ProvidersController {
-  constructor(private readonly providersService: ProvidersService) {}
+  constructor(private readonly providersService: ProvidersService) { }
 
   @Get('search')
   @ApiOperation({ summary: 'Search for providers' })
@@ -80,10 +82,10 @@ export class ProvidersController {
   @ApiBearerAuth()
   @Put('me/working-hours')
   @ApiOperation({ summary: 'Update working hours' })
-  @ApiBody({ type: [WorkingHoursDto] })
+  @ApiBody({ type: [CreateWorkingHoursDto] })
   updateWorkingHours(
     @Req() req: AuthenticatedRequest,
-    @Body() workingHoursDto: WorkingHoursDto[],
+    @Body() workingHoursDto: CreateWorkingHoursDto[],
   ) {
     return this.providersService.updateWorkingHours(
       req.user.id,

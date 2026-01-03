@@ -44,6 +44,7 @@ model User {
   id            String    @id @default(uuid())
   email         String    @unique
   name          String?   // Mapped to raw_user_meta_data->>'full_name'
+  phoneNumber   String?
   role          Role      @default(CLIENT)
   
   isDeleted     Boolean   @default(false) // Soft delete flag
@@ -103,6 +104,7 @@ model ProviderProfile {
   postalCode      String
   latitude        Float?
   longitude       Float?
+  tags            String[]
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -195,4 +197,6 @@ model Appointment {
   service         Service            @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   
   @@map("appointments")
+  @@index([providerId, startTime]) // Optimize availability checks
+  @@index([clientId, startTime])   // Optimize client history
 }

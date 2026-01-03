@@ -3,13 +3,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateProviderDto,
   UpdateProviderDto,
-  WorkingHoursDto,
 } from './dto/provider.dto';
+import { CreateWorkingHoursDto } from './dto/create-working-hours.dto';
 import { ProviderProfile } from '@prisma/client';
 
 @Injectable()
 export class ProvidersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(
     userId: string,
@@ -48,7 +48,7 @@ export class ProvidersService {
     return profile;
   }
 
-  async updateWorkingHours(userId: string, hours: WorkingHoursDto[]) {
+  async updateWorkingHours(userId: string, hours: CreateWorkingHoursDto[]) {
     const profile = await this.findOne(userId);
 
     // Transaction: Delete existing hours for this provider and insert new ones

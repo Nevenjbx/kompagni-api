@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Post, Req, Body } from '@nestjs/common';
+import { Controller, Get, UseGuards, Post, Req, Body, Patch, Delete } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -7,6 +7,8 @@ import { Role } from '@prisma/client';
 
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
+
+import { SyncUserDto } from './dto/sync-user.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -32,24 +34,29 @@ export class UsersController {
   @ApiOperation({ summary: 'Sync Supabase user to Prisma' })
   async syncUser(
     @Req() req: AuthenticatedRequest,
-    @Body() body: {
-      role: Role;
-      name?: string;
-      providerProfile?: {
-        businessName: string;
-        description?: string;
-        address: string;
-        city: string;
-        postalCode: string;
-      };
-    },
+    @Body() body: SyncUserDto,
   ) {
     return this.usersService.syncUser(
       req.user.id,
       req.user.email!,
       body.role,
       body.name,
-      body.providerProfile,
+      body.phoneNumber,
     );
+  }
+
+  @Patch('me')
+  @ApiOperation({ summary: 'Update current user profile' })
+  async updateMe(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: import('./dto/update-user.dto').UpdateUserDto,
+  ) {
+    return this.usersService.updateUser(req.user.id, body);
+  }
+
+  @Delete('me')
+  @ApiOperation({ summary: 'Delete current user account' })
+  async deleteMe(@Req() req: AuthenticatedRequest) {
+    return this.usersService.deleteUser(req.user.id);
   }
 }

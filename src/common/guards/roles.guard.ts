@@ -7,7 +7,7 @@ import { AuthenticatedRequest } from '../interfaces/authenticated-request.interf
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private reflector: Reflector) { }
 
   canActivate(context: ExecutionContext): boolean {
     const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
@@ -15,6 +15,15 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
     if (!requiredRoles) {
+      const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
+      // Block UNSYNCED users unless the path contains '/users/sync'
+      if (user && (user as any).role === 'UNSYNCED') {
+        const request = context.switchToHttp().getRequest();
+        if (request.url.includes('/users/sync')) {
+          return true;
+        }
+        return false;
+      }
       return true;
     }
     const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
