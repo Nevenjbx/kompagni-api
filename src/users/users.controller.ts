@@ -35,12 +35,16 @@ export class UsersController {
     @Body() body: {
       role: Role;
       name?: string;
+      phoneNumber?: string;
       providerProfile?: {
         businessName: string;
         description?: string;
         address: string;
         city: string;
         postalCode: string;
+        latitude?: number;
+        longitude?: number;
+        tags?: string[];
       };
     },
   ) {
@@ -49,6 +53,7 @@ export class UsersController {
       req.user.email!,
       body.role,
       body.name,
+      body.phoneNumber,
       body.providerProfile,
     );
   }
