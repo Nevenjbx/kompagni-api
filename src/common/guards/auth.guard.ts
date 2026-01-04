@@ -53,7 +53,7 @@ export class AuthGuard implements CanActivate {
       request.user = {
         id: authPayload.sub,
         email: authPayload.email ?? '',
-        role: 'UNSYNCED', // Reverted for debugging
+        role: dbUser.role,
         createdAt: new Date(),
         updatedAt: new Date(),
       } as any;
