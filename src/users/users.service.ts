@@ -30,6 +30,19 @@ export class UsersService {
       tags?: string[];
     },
   ) {
+    // 0. Clean up "Ghost Users" (Same email, different ID)
+    // This happens if a user was deleted in Supabase but not locally, and then signs up again.
+    const existingByEmail = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingByEmail && existingByEmail.id !== id) {
+      console.warn(`[SyncUser] Found potential ghost user with email ${email} (ID: ${existingByEmail.id}) while syncing new ID ${id}. Deleting old record.`);
+      await this.prisma.user.delete({
+        where: { id: existingByEmail.id },
+      });
+    }
+
     // 1. Upsert User
     const user = await this.prisma.user.upsert({
       where: { id },
