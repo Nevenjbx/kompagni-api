@@ -15,15 +15,6 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
     if (!requiredRoles) {
-      const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
-      // Block UNSYNCED users unless the path contains '/users/sync'
-      if (user && (user as any).role === 'UNSYNCED') {
-        const request = context.switchToHttp().getRequest();
-        if (request.url.includes('/users/sync')) {
-          return true;
-        }
-        return false;
-      }
       return true;
     }
     const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();

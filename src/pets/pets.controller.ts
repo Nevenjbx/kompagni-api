@@ -5,8 +5,6 @@ import { AuthenticatedRequest } from '../common/interfaces/authenticated-request
 import { PetSize, PetCharacter, AnimalType } from '@prisma/client';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 
-import { CreatePetDto } from './dto/create-pet.dto';
-
 @ApiTags('Pets')
 @Controller('pets')
 @UseGuards(AuthGuard)
@@ -18,7 +16,7 @@ export class PetsController {
     @ApiOperation({ summary: 'Add a new pet' })
     async addPet(
         @Req() req: AuthenticatedRequest,
-        @Body() body: CreatePetDto,
+        @Body() body: { name: string; type: AnimalType; breed: string; size: PetSize; character: PetCharacter },
     ) {
         return this.petsService.createPet(req.user.id, body);
     }

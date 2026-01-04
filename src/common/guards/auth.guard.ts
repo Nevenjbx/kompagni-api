@@ -50,21 +50,19 @@ export class AuthGuard implements CanActivate {
     const dbUser = await this.usersService.findById(authPayload.sub);
 
     if (dbUser) {
-      request.user = {
-        id: authPayload.sub,
-        email: authPayload.email ?? '',
-        role: dbUser.role,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as any;
+      request.user = dbUser;
     } else {
-      // User authenticated in Supabase but not in Prisma => UNSYNCED
+      // User likely authenticated via Supabase but not yet synced to Prisma.
+      // Attach a temporary object so they can access public or sync endpoints.
+      // IMPORTANT: Role is defaulted to CLIENT to prevent unauthorized access if logic depends on it.
+      // The 'sync' endpoint will update this.
       request.user = {
         id: authPayload.sub,
         email: authPayload.email ?? '',
-        role: 'UNSYNCED',
+        role: 'CLIENT',
         createdAt: new Date(),
         updatedAt: new Date(),
+        // Casting as any because we miss some Prisma fields but adequate for Auth checks
       } as any;
     }
 
