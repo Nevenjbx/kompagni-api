@@ -1,0 +1,12 @@
+dist
+node_modules
+.git
+.github
+.gitignore
+.env
+.env.*
+npm-debug.log
+Dockerfile
+render.yaml
+README.md
+test
