@@ -106,4 +106,46 @@ export class UsersService {
       where: { id: userId },
     });
   }
+
+  async addFavorite(userId: string, providerId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        favoriteProviders: {
+          connect: { id: providerId },
+        },
+      },
+      include: { favoriteProviders: true },
+    });
+  }
+
+  async removeFavorite(userId: string, providerId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        favoriteProviders: {
+          disconnect: { id: providerId },
+        },
+      },
+      include: { favoriteProviders: true },
+    });
+  }
+
+  async getFavorites(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        favoriteProviders: {
+           include: {
+             user: {
+                select: {
+                   phoneNumber: true,
+                }
+             }
+           }
+        }
+      },
+    });
+    return user?.favoriteProviders || [];
+  }
 }
