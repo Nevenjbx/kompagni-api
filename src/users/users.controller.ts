@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Post, Req, Body, Patch } from '@nestjs/common';
+import { Controller, Get, UseGuards, Post, Req, Body, Patch, Param, Delete } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -65,5 +65,29 @@ export class UsersController {
     @Body() body: import('./dto/update-user.dto').UpdateUserDto,
   ) {
     return this.usersService.updateUser(req.user.id, body);
+  }
+
+  @Post('favorites/:providerId')
+  @ApiOperation({ summary: 'Add a provider to favorites' })
+  async addFavorite(
+    @Req() req: AuthenticatedRequest,
+    @Param('providerId') providerId: string,
+  ) {
+    return this.usersService.addFavorite(req.user.id, providerId);
+  }
+
+  @Delete('favorites/:providerId')
+  @ApiOperation({ summary: 'Remove a provider from favorites' })
+  async removeFavorite(
+    @Req() req: AuthenticatedRequest,
+    @Param('providerId') providerId: string,
+  ) {
+    return this.usersService.removeFavorite(req.user.id, providerId);
+  }
+
+  @Get('favorites')
+  @ApiOperation({ summary: 'Get favorite providers' })
+  async getFavorites(@Req() req: AuthenticatedRequest) {
+    return this.usersService.getFavorites(req.user.id);
   }
 }
