@@ -16,9 +16,17 @@ export class PetsController {
     @ApiOperation({ summary: 'Add a new pet' })
     async addPet(
         @Req() req: AuthenticatedRequest,
-        @Body() body: { name: string; type: AnimalType; breed: string; size: PetSize; character: PetCharacter },
+        @Body() body: { name: string; type: string; breed: string; size: string; character: string },
     ) {
-        return this.petsService.createPet(req.user.id, body);
+        // Convert lowercase enum values from frontend to uppercase for Prisma
+        const normalizedData = {
+            name: body.name,
+            type: body.type.toUpperCase() as AnimalType,
+            breed: body.breed,
+            size: body.size.toUpperCase() as PetSize,
+            character: body.character.toUpperCase() as PetCharacter,
+        };
+        return this.petsService.createPet(req.user.id, normalizedData);
     }
 
     @Get()

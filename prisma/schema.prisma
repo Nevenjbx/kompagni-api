@@ -43,7 +43,8 @@ enum AnimalType {
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
-  name          String?   // Mapped to raw_user_meta_data->>'full_name'
+  firstName     String?   // Prénom
+  lastName      String?   // Nom de famille
   phoneNumber   String?
   role          Role      @default(CLIENT)
   

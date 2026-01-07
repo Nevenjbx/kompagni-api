@@ -15,7 +15,8 @@ async function main() {
     const providers = [
         {
             email: 'pattes-soyeuses@kompagni.com',
-            name: 'Julie Lavigne',
+            firstName: 'Julie',
+            lastName: 'Lavigne',
             businessName: 'Pattes Soyeuses',
             description: 'Toilettage de luxe pour chiens et chats.',
             address: '15 Rue de la République',
@@ -28,7 +29,8 @@ async function main() {
         },
         {
             email: 'clinique-veto-bellecour@kompagni.com',
-            name: 'Dr. Marc Durand',
+            firstName: 'Marc',
+            lastName: 'Durand',
             businessName: 'Clinique Vétérinaire Bellecour',
             description: 'Soins vétérinaires complets et urgences.',
             address: '5 Place Bellecour',
@@ -41,7 +43,8 @@ async function main() {
         },
         {
             email: 'la-niche-lyonnaise@kompagni.com',
-            name: 'Sophie Martin',
+            firstName: 'Sophie',
+            lastName: 'Martin',
             businessName: 'La Niche Lyonnaise',
             description: 'Pension canine familiale au cœur de la ville.',
             address: '28 Quai Saint-Antoine',
@@ -59,7 +62,8 @@ async function main() {
             update: {},
             create: {
                 email: p.email,
-                name: p.name,
+                firstName: p.firstName,
+                lastName: p.lastName,
                 role: Role.PROVIDER,
                 providerProfile: {
                     create: {
@@ -74,7 +78,8 @@ async function main() {
             include: { providerProfile: true }
         });
 
-        if (user.providerProfile) {
+        const providerProfile = user.providerProfile as { id: string } | null;
+        if (providerProfile) {
             console.log(`Création des services et horaires pour : ${p.businessName}`);
 
             // Ajout des services
@@ -82,7 +87,7 @@ async function main() {
                 await prisma.service.create({
                     data: {
                         ...s,
-                        providerId: user.providerProfile.id
+                        providerId: providerProfile.id
                     }
                 });
             }
@@ -96,7 +101,7 @@ async function main() {
                         endTime: '18:00',
                         breakStartTime: '12:00',
                         breakEndTime: '13:30',
-                        providerId: user.providerProfile.id
+                        providerId: providerProfile.id
                     }
                 });
             }

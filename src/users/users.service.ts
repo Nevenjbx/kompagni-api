@@ -1,9 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  private readonly logger = new Logger(UsersService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private supabase: SupabaseService,
+  ) { }
 
   async findAll() {
     return this.prisma.user.findMany();
@@ -17,7 +23,8 @@ export class UsersService {
     id: string,
     email: string,
     role: import('@prisma/client').Role,
-    name?: string,
+    firstName?: string,
+    lastName?: string,
     phoneNumber?: string,
     providerProfileData?: {
       businessName: string;
@@ -46,12 +53,13 @@ export class UsersService {
     // 1. Upsert User
     const user = await this.prisma.user.upsert({
       where: { id },
-      update: { email, role, name, phoneNumber },
+      update: { email, role, firstName, lastName, phoneNumber },
       create: {
         id,
         email,
         role,
-        name,
+        firstName,
+        lastName,
         phoneNumber,
       },
     });
@@ -88,20 +96,34 @@ export class UsersService {
   }
 
   async updateUser(userId: string, data: import('./dto/update-user.dto').UpdateUserDto) {
+    // 1. If email is being updated, sync with Supabase Auth first
+    if (data.email) {
+      const success = await this.supabase.adminUpdateUserEmail(userId, data.email);
+      if (!success) {
+        this.logger.warn(`Email update in Supabase Auth failed for user ${userId}, proceeding with Prisma update only`);
+      }
+    }
+
+    // 2. Update in Prisma
     return this.prisma.user.update({
       where: { id: userId },
       data: {
-        ...(data.name && { name: data.name }),
+        ...(data.firstName && { firstName: data.firstName }),
+        ...(data.lastName && { lastName: data.lastName }),
         ...(data.phoneNumber && { phoneNumber: data.phoneNumber }),
-        // Note: Updating email here updates it in Prisma but NOT in Supabase Auth automatically.
-        // It's usually better to change email via Supabase Auth client to ensure verification.
-        // However, we will allow updating the record here for display purposes or if the client handled the auth update.
         ...(data.email && { email: data.email }),
       },
     });
   }
 
   async deleteUser(userId: string) {
+    // 1. Delete from Supabase Auth first
+    const authDeleted = await this.supabase.adminDeleteUser(userId);
+    if (!authDeleted) {
+      this.logger.warn(`Failed to delete user ${userId} from Supabase Auth, proceeding with Prisma deletion`);
+    }
+
+    // 2. Delete from Prisma (cascades to related records)
     return this.prisma.user.delete({
       where: { id: userId },
     });
@@ -136,13 +158,13 @@ export class UsersService {
       where: { id: userId },
       include: {
         favoriteProviders: {
-           include: {
-             user: {
-                select: {
-                   phoneNumber: true,
-                }
-             }
-           }
+          include: {
+            user: {
+              select: {
+                phoneNumber: true,
+              }
+            }
+          }
         }
       },
     });
