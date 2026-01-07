@@ -34,7 +34,8 @@ export class UsersController {
     @Req() req: AuthenticatedRequest,
     @Body() body: {
       role: Role;
-      name?: string;
+      firstName?: string;
+      lastName?: string;
       phoneNumber?: string;
       providerProfile?: {
         businessName: string;
@@ -52,7 +53,8 @@ export class UsersController {
       req.user.id,
       req.user.email!,
       body.role,
-      body.name,
+      body.firstName,
+      body.lastName,
       body.phoneNumber,
       body.providerProfile,
     );

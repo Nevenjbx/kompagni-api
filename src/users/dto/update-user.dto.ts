@@ -5,7 +5,12 @@ export class UpdateUserDto {
     @ApiProperty({ required: false })
     @IsString()
     @IsOptional()
-    name?: string;
+    firstName?: string;
+
+    @ApiProperty({ required: false })
+    @IsString()
+    @IsOptional()
+    lastName?: string;
 
     @ApiProperty({ required: false })
     @IsString()
@@ -17,3 +22,4 @@ export class UpdateUserDto {
     @IsOptional()
     email?: string;
 }
+

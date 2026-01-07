@@ -62,8 +62,25 @@ export class SupabaseService {
     }
   }
 
-  async adminDeleteUser(userId: string) {
+  async adminUpdateUserEmail(userId: string, email: string): Promise<boolean> {
+    const { error } = await this.supabase.auth.admin.updateUserById(userId, {
+      email,
+      email_confirm: true, // Auto-confirm the new email
+    });
+
+    if (error) {
+      this.logger.warn(`Failed to update email for user ${userId}: ${error.message}`);
+      return false;
+    }
+    return true;
+  }
+
+  async adminDeleteUser(userId: string): Promise<boolean> {
     const { error } = await this.supabase.auth.admin.deleteUser(userId);
-    if (error) this.logger.warn(`Failed to delete user ${userId}`);
+    if (error) {
+      this.logger.warn(`Failed to delete user ${userId}: ${error.message}`);
+      return false;
+    }
+    return true;
   }
 }
