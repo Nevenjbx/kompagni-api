@@ -30,7 +30,7 @@ import { AuthenticatedRequest } from '../common/interfaces/authenticated-request
 @ApiBearerAuth()
 @Throttle({ default: { ttl: 60000, limit: 20 } }) // Stricter: 20 requests/minute for appointments
 export class AppointmentsController {
-  constructor(private readonly appointmentsService: AppointmentsService) {}
+  constructor(private readonly appointmentsService: AppointmentsService) { }
 
   @Post()
   @ApiOperation({ summary: 'Book an appointment' })
@@ -60,8 +60,16 @@ export class AppointmentsController {
 
   @Get()
   @ApiOperation({ summary: 'Get my appointments (Client or Provider)' })
-  findAll(@Req() req: AuthenticatedRequest) {
-    return this.appointmentsService.findAllMy(req.user.id);
+  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 20)' })
+  findAll(
+    @Req() req: AuthenticatedRequest,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '20', 10);
+    return this.appointmentsService.findAllMy(req.user.id, pageNum, limitNum);
   }
 
   @Get(':id')

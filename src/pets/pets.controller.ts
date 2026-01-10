@@ -35,9 +35,33 @@ export class PetsController {
         return this.petsService.getMyPets(req.user.id);
     }
 
+    @Get('user/:userId')
+    @ApiOperation({ summary: 'Get pets of a specific user' })
+    async getUserPets(@Param('userId') userId: string) {
+        return this.petsService.getMyPets(userId);
+    }
+
     @Delete(':id')
     @ApiOperation({ summary: 'Delete a pet' })
     async deletePet(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
         return this.petsService.deletePet(req.user.id, id);
+    }
+
+    @Get(':id/note')
+    @ApiOperation({ summary: 'Get provider note for a pet' })
+    async getPetNote(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+        const note = await this.petsService.getProviderPetNote(id, req.user.id);
+        return { note };
+    }
+
+    @Post(':id/note')
+    @ApiOperation({ summary: 'Update provider note for a pet' })
+    async updatePetNote(
+        @Req() req: AuthenticatedRequest,
+        @Param('id') id: string,
+        @Body() body: { note: string },
+    ) {
+        await this.petsService.upsertProviderPetNote(id, req.user.id, body.note);
+        return { success: true };
     }
 }

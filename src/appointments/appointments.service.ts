@@ -23,7 +23,7 @@ dayjs.extend(customParseFormat);
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async create(clientId: string, dto: CreateAppointmentDto) {
     // Use Transaction with Serializable isolation for race condition prevention
@@ -169,7 +169,7 @@ export class AppointmentsService {
     }
   }
 
-  async findAllMy(userId: string) {
+  async findAllMy(userId: string, page: number = 1, limit: number = 20) {
     const whereConditions: any[] = [{ clientId: userId }];
     const profile = await this.prisma.providerProfile.findUnique({
       where: { userId },
@@ -178,11 +178,27 @@ export class AppointmentsService {
       whereConditions.push({ providerId: profile.id });
     }
 
-    return this.prisma.appointment.findMany({
-      where: { OR: whereConditions },
-      include: { service: true, provider: true, client: true },
-      orderBy: { startTime: 'desc' },
-    });
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.prisma.appointment.findMany({
+        where: { OR: whereConditions },
+        include: { service: true, provider: true, client: true },
+        orderBy: { startTime: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.appointment.count({
+        where: { OR: whereConditions },
+      }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+    };
   }
 
   async findOne(id: string) {

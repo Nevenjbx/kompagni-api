@@ -30,4 +30,50 @@ export class PetsService {
             },
         });
     }
+
+    async getProviderPetNote(petId: string, providerUserId: string): Promise<string | null> {
+        // Find provider profile id from user id
+        const provider = await this.prisma.providerProfile.findUnique({
+            where: { userId: providerUserId },
+        });
+
+        if (!provider) return null;
+
+        const note = await this.prisma.providerPetNote.findUnique({
+            where: {
+                petId_providerId: {
+                    petId,
+                    providerId: provider.id,
+                },
+            },
+        });
+
+        return note?.note || null;
+    }
+
+    async upsertProviderPetNote(petId: string, providerUserId: string, noteContent: string): Promise<void> {
+        // Find provider profile id from user id
+        const provider = await this.prisma.providerProfile.findUnique({
+            where: { userId: providerUserId },
+        });
+
+        if (!provider) throw new Error('Provider profile not found');
+
+        await this.prisma.providerPetNote.upsert({
+            where: {
+                petId_providerId: {
+                    petId,
+                    providerId: provider.id,
+                },
+            },
+            create: {
+                petId,
+                providerId: provider.id,
+                note: noteContent,
+            },
+            update: {
+                note: noteContent,
+            },
+        });
+    }
 }

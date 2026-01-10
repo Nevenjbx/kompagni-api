@@ -91,6 +91,7 @@ model Pet {
 
   // Relation
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  providerNotes ProviderPetNote[]
 
   @@map("pets")
 }
@@ -117,6 +118,7 @@ model ProviderProfile {
   workingHours    WorkingHours[]
   absences        ProviderAbsence[]
   appointments    Appointment[]
+  petNotes        ProviderPetNote[]
   favoritedBy     User[]            @relation("UserFavorites") // New relation
 
   @@map("provider_profiles")
@@ -202,4 +204,21 @@ model Appointment {
   @@map("appointments")
   @@index([providerId, startTime]) // Optimize availability checks
   @@index([clientId, startTime])   // Optimize client history
+}
+
+model ProviderPetNote {
+  id          String   @id @default(uuid())
+  petId       String
+  providerId  String
+  note        String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  pet         Pet             @relation(fields: [petId], references: [id], onDelete: Cascade)
+  provider    ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  
+  @@unique([petId, providerId]) // One note per pet per provider
+  @@map("provider_pet_notes")
 }
