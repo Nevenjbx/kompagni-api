@@ -23,6 +23,11 @@ export class CreateAppointmentDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petId?: string;
 }
 
 export class UpdateAppointmentStatusDto {
