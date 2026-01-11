@@ -91,6 +91,7 @@ model Pet {
 
   // Relation
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
   providerNotes ProviderPetNote[]
 
   @@map("pets")
@@ -200,6 +201,8 @@ model Appointment {
   client          User               @relation(fields: [clientId], references: [id], onDelete: Cascade)
   provider        ProviderProfile    @relation(fields: [providerId], references: [id], onDelete: Cascade)
   service         Service            @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  pet             Pet?               @relation(fields: [petId], references: [id])
+  petId           String?
   
   @@map("appointments")
   @@index([providerId, startTime]) // Optimize availability checks

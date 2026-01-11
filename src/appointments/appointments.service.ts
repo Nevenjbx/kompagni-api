@@ -30,6 +30,15 @@ export class AppointmentsService {
     try {
       const appointment = await this.prisma.$transaction(
         async (tx) => {
+          // 0. Validate Pet if provided
+          if (dto.petId) {
+            const pet = await tx.pet.findUnique({ where: { id: dto.petId } });
+            if (!pet) throw new NotFoundException('Pet not found');
+            if (pet.ownerId !== clientId) {
+              throw new ForbiddenException('Pet does not belong to you');
+            }
+          }
+
           // 1. Get Service details
           const service = await tx.service.findUnique({
             where: { id: dto.serviceId },
@@ -144,6 +153,7 @@ export class AppointmentsService {
               startTime: start.toDate(),
               endTime: end.toDate(),
               notes: dto.notes,
+              petId: dto.petId,
               status: 'PENDING',
             },
             include: {
@@ -183,7 +193,7 @@ export class AppointmentsService {
     const [items, total] = await Promise.all([
       this.prisma.appointment.findMany({
         where: { OR: whereConditions },
-        include: { service: true, provider: true, client: true },
+        include: { service: true, provider: true, client: true, pet: true },
         orderBy: { startTime: 'desc' },
         skip,
         take: limit,
@@ -204,7 +214,7 @@ export class AppointmentsService {
   async findOne(id: string) {
     return this.prisma.appointment.findUnique({
       where: { id },
-      include: { service: true, provider: true, client: true },
+      include: { service: true, provider: true, client: true, pet: true },
     });
   }
 
