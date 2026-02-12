@@ -22,17 +22,19 @@ begin
   insert into public.users (
     id, 
     email, 
-    name, 
+    "firstName",
+    "lastName",
     role, 
     "isDeleted", 
     "createdAt", 
     "updatedAt"
   )
   values (
-    new.id::text,                         -- Users.id is String (UUID)
+    new.id::text,                            -- Users.id is String (UUID)
     new.email,
-    new.raw_user_meta_data->>'full_name', -- Map 'full_name' from metadata
-    'CLIENT',                             -- Default Role
+    new.raw_user_meta_data->>'first_name',   -- Map 'first_name' from metadata
+    new.raw_user_meta_data->>'last_name',    -- Map 'last_name' from metadata
+    'CLIENT',                                -- Default Role
     false,
     now(),
     now()
