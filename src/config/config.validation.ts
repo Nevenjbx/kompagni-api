@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const envSchema = z.object({
-  // Database
-  DATABASE_URL: z.string().url(),
+  // Database (PostgreSQL connection string, not a standard URL)
+  DATABASE_URL: z.string().min(1),
 
   // Supabase
   SUPABASE_URL: z.string().url(),
