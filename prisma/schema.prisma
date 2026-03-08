@@ -225,3 +225,18 @@ model ProviderPetNote {
   @@unique([petId, providerId]) // One note per pet per provider
   @@map("provider_pet_notes")
 }
+
+// ==============================================
+// WAITLIST
+// ==============================================
+
+model WaitlistLead {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  profile   String   // "particulier" or "professionnel"
+  city      String?
+  
+  createdAt DateTime @default(now())
+
+  @@map("waitlist_leads")
+}

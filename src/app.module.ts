@@ -14,6 +14,7 @@ import { PetsModule } from './pets/pets.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { HealthModule } from './health/health.module';
 import { validateEnv } from './config/config.validation';
+import { WaitlistModule } from './waitlist/waitlist.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { validateEnv } from './config/config.validation';
     PetsModule,
     NotificationsModule,
     HealthModule,
+    WaitlistModule,
   ],
   controllers: [AppController],
   providers: [
