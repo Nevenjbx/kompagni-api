@@ -15,6 +15,9 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { HealthModule } from './health/health.module';
 import { validateEnv } from './config/config.validation';
 import { WaitlistModule } from './waitlist/waitlist.module';
+import { StaffModule } from './staff/staff.module';
+import { SalonConfigModule } from './salon-config/salon-config.module';
+import { TablesModule } from './tables/tables.module';
 
 @Module({
   imports: [
@@ -25,8 +28,8 @@ import { WaitlistModule } from './waitlist/waitlist.module';
     ThrottlerModule.forRoot({
       throttlers: [
         {
-          ttl: 60000, // 1 minute window
-          limit: 100, // 100 requests per minute (global)
+          ttl: 60000,
+          limit: 100,
         },
       ],
     }),
@@ -40,6 +43,9 @@ import { WaitlistModule } from './waitlist/waitlist.module';
     NotificationsModule,
     HealthModule,
     WaitlistModule,
+    StaffModule,
+    SalonConfigModule,
+    TablesModule,
   ],
   controllers: [AppController],
   providers: [
@@ -51,3 +57,4 @@ import { WaitlistModule } from './waitlist/waitlist.module';
   ],
 })
 export class AppModule { }
+

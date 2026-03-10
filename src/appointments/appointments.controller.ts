@@ -2,93 +2,110 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Body,
-  Patch,
   Param,
+  Query,
   UseGuards,
   Req,
-  Query,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiBearerAuth,
-  ApiQuery,
-} from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { AuthGuard } from '../common/guards/auth.guard';
+import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 import { AppointmentsService } from './appointments.service';
+import { ManualBlocksService } from './manual-blocks.service';
 import {
   CreateAppointmentDto,
   UpdateAppointmentStatusDto,
+  GetSlotsDto,
+  LockSlotDto,
 } from './dto/appointment.dto';
-import { AuthGuard } from '../common/guards/auth.guard';
-import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 @ApiTags('Appointments')
-@Controller('appointments')
-@UseGuards(AuthGuard)
 @ApiBearerAuth()
-@Throttle({ default: { ttl: 60000, limit: 20 } }) // Stricter: 20 requests/minute for appointments
+@UseGuards(AuthGuard)
+@Controller('appointments')
 export class AppointmentsController {
-  constructor(private readonly appointmentsService: AppointmentsService) { }
+  constructor(
+    private readonly appointmentsService: AppointmentsService,
+    private readonly manualBlocksService: ManualBlocksService,
+  ) {}
 
-  @Post()
-  @ApiOperation({ summary: 'Book an appointment' })
+  // ─── SLOTS ──────────────────────────────────────
+
+  @Get('slots/:salonId')
+  getSlots(@Param('salonId') salonId: string, @Query() dto: GetSlotsDto) {
+    return this.appointmentsService.getAvailableSlots(salonId, dto);
+  }
+
+  @Post('slots/lock')
+  lockSlot(@Body() dto: LockSlotDto) {
+    return this.appointmentsService.lockSlot(dto);
+  }
+
+  // ─── RENDEZ-VOUS ────────────────────────────────
+
+  @Post(':salonId')
   create(
     @Req() req: AuthenticatedRequest,
-    @Body() createAppointmentDto: CreateAppointmentDto,
+    @Param('salonId') salonId: string,
+    @Body() dto: CreateAppointmentDto,
   ) {
-    return this.appointmentsService.create(req.user.id, createAppointmentDto);
+    return this.appointmentsService.create(req.user.id, salonId, dto);
   }
 
-  @Get('available-slots')
-  @ApiOperation({ summary: 'Get available time slots' })
-  @ApiQuery({ name: 'providerId' })
-  @ApiQuery({ name: 'serviceId' })
-  @ApiQuery({ name: 'date', description: 'YYYY-MM-DD' })
-  getAvailableSlots(
-    @Query('providerId') providerId: string,
-    @Query('serviceId') serviceId: string,
-    @Query('date') date: string,
-  ) {
-    return this.appointmentsService.getAvailableSlots(
-      providerId,
-      serviceId,
-      date,
-    );
-  }
-
-  @Get()
-  @ApiOperation({ summary: 'Get my appointments (Client or Provider)' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Items per page (default: 20)' })
-  findAll(
+  @Get('my')
+  findMyAppointments(
     @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    const pageNum = parseInt(page || '1', 10);
-    const limitNum = parseInt(limit || '20', 10);
-    return this.appointmentsService.findAllMy(req.user.id, pageNum, limitNum);
+    return this.appointmentsService.findAllForClient(req.user.id, Number(page) || 1, Number(limit) || 20);
+  }
+
+  @Get('salon')
+  findSalonAppointments(
+    @Req() req: AuthenticatedRequest,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.appointmentsService.findAllForSalon(req.user.id, Number(page) || 1, Number(limit) || 50);
+  }
+
+  @Get('pending')
+  findPending(@Req() req: AuthenticatedRequest) {
+    return this.appointmentsService.findPending(req.user.id);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get appointment details' })
   findOne(@Param('id') id: string) {
     return this.appointmentsService.findOne(id);
   }
 
-  @Patch(':id/status')
-  @ApiOperation({ summary: 'Update appointment status' })
+  @Put(':id/status')
   updateStatus(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
-    @Body() updateStatusDto: UpdateAppointmentStatusDto,
+    @Body() dto: UpdateAppointmentStatusDto,
   ) {
-    return this.appointmentsService.updateStatus(
-      req.user.id,
-      id,
-      updateStatusDto,
-    );
+    return this.appointmentsService.updateStatus(req.user.id, id, dto);
+  }
+
+  // ─── BLOCAGES MANUELS ──────────────────────────
+
+  @Post('blocks')
+  createBlock(@Req() req: AuthenticatedRequest, @Body() dto: any) {
+    return this.manualBlocksService.create(req.user.id, dto);
+  }
+
+  @Get('blocks/all')
+  findAllBlocks(@Req() req: AuthenticatedRequest) {
+    return this.manualBlocksService.findAll(req.user.id);
+  }
+
+  @Delete('blocks/:id')
+  removeBlock(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.manualBlocksService.remove(req.user.id, id);
   }
 }

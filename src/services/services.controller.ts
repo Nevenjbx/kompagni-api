@@ -69,4 +69,13 @@ export class ServicesController {
   remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.servicesService.remove(req.user.id, id);
   }
+
+  @Get('salon/:salonId/animal/:animalId')
+  @ApiOperation({ summary: 'Get services compatible with a specific animal' })
+  findForAnimal(
+    @Param('salonId') salonId: string,
+    @Param('animalId') animalId: string,
+  ) {
+    return this.servicesService.findForAnimal(salonId, animalId);
+  }
 }

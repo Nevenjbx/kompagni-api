@@ -5,360 +5,224 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SlotEngineService } from './slot-engine.service';
 import {
   CreateAppointmentDto,
   UpdateAppointmentStatusDto,
+  GetSlotsDto,
+  LockSlotDto,
 } from './dto/appointment.dto';
 import { Prisma } from '@prisma/client';
 import dayjs from 'dayjs';
-import isBetween from 'dayjs/plugin/isBetween';
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
-import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
-import customParseFormat from 'dayjs/plugin/customParseFormat';
-
-dayjs.extend(isBetween);
-dayjs.extend(isSameOrBefore);
-dayjs.extend(isSameOrAfter);
-dayjs.extend(customParseFormat);
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private slotEngine: SlotEngineService,
+  ) {}
 
-  async create(clientId: string, dto: CreateAppointmentDto) {
-    // Use Transaction with Serializable isolation for race condition prevention
-    try {
-      const appointment = await this.prisma.$transaction(
-        async (tx) => {
-          // 0. Validate Pet if provided
-          if (dto.petId) {
-            const pet = await tx.pet.findUnique({ where: { id: dto.petId } });
-            if (!pet) throw new NotFoundException('Pet not found');
-            if (pet.ownerId !== clientId) {
-              throw new ForbiddenException('Pet does not belong to you');
-            }
-          }
+  // ─── SLOTS ──────────────────────────────────────
 
-          // 1. Get Service details
-          const service = await tx.service.findUnique({
-            where: { id: dto.serviceId },
-            include: { provider: { include: { workingHours: true } } },
-          });
+  async getAvailableSlots(salonId: string, dto: GetSlotsDto) {
+    return this.slotEngine.generateSlots({
+      salonId,
+      serviceId: dto.serviceId,
+      animalId: dto.animalId,
+      offerType: dto.offerType,
+    });
+  }
 
-          if (!service) {
-            throw new NotFoundException('Service not found');
-          }
+  async lockSlot(dto: LockSlotDto) {
+    return this.slotEngine.acquireLock(dto.slotKey);
+  }
 
-          const providerId = service.providerId;
-          const start = dayjs(dto.startTime);
-          const end = start.add(service.duration, 'minute');
+  // ─── CREATION RDV ───────────────────────────────
 
-          // 2. Validate Working Hours
-          const dayOfWeek = start.day(); // 0-6
-          const workingHours = service.provider.workingHours.find(
-            (wh) => wh.dayOfWeek === dayOfWeek,
-          );
-
-          if (!workingHours) {
-            throw new BadRequestException('Provider does not work on this day');
-          }
-
-          // Parse "HH:mm" strings
-          const [startH, startM] = workingHours.startTime
-            .split(':')
-            .map(Number);
-          const [endH, endM] = workingHours.endTime.split(':').map(Number);
-
-          const workStart = start
-            .hour(startH)
-            .minute(startM)
-            .second(0)
-            .millisecond(0);
-          const workEnd = start
-            .hour(endH)
-            .minute(endM)
-            .second(0)
-            .millisecond(0);
-
-          // Check strict inclusion
-          if (start.isBefore(workStart) || end.isAfter(workEnd)) {
-            throw new BadRequestException(
-              'Appointment time is outside of working hours',
-            );
-          }
-
-          // 2b. Check Lunch Break
-          if (workingHours.breakStartTime && workingHours.breakEndTime) {
-            const [bStartH, bStartM] = workingHours.breakStartTime
-              .split(':')
-              .map(Number);
-            const [bEndH, bEndM] = workingHours.breakEndTime
-              .split(':')
-              .map(Number);
-
-            const breakStart = start
-              .hour(bStartH)
-              .minute(bStartM)
-              .second(0)
-              .millisecond(0);
-            const breakEnd = start
-              .hour(bEndH)
-              .minute(bEndM)
-              .second(0)
-              .millisecond(0);
-
-            // Overlap with break: (Start < BreakEnd) and (End > BreakStart)
-            if (start.isBefore(breakEnd) && end.isAfter(breakStart)) {
-              throw new BadRequestException(
-                'Appointment time is during lunch break',
-              );
-            }
-          }
-
-          // 2c. Check Absences
-          const absence = await tx.providerAbsence.findFirst({
-            where: {
-              providerId,
-              startDate: { lte: end.toDate() },
-              endDate: { gte: start.toDate() },
-            },
-          });
-
-          if (absence) {
-            throw new BadRequestException(
-              'Provider is absent during this time',
-            );
-          }
-
-          // 3. Check for Overlaps with other appointments
-          const overlap = await tx.appointment.findFirst({
-            where: {
-              providerId,
-              status: { not: 'CANCELLED' },
-              startTime: { lt: end.toDate() },
-              endTime: { gt: start.toDate() },
-            },
-          });
-
-          if (overlap) {
-            throw new BadRequestException('This time slot is already booked');
-          }
-
-          // 4. Create Appointment
-          return tx.appointment.create({
-            data: {
-              clientId,
-              providerId,
-              serviceId: dto.serviceId,
-              startTime: start.toDate(),
-              endTime: end.toDate(),
-              notes: dto.notes,
-              petId: dto.petId,
-              status: 'PENDING',
-            },
-            include: {
-              service: true,
-              provider: true,
-            },
-          });
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  async create(clientId: string, salonId: string, dto: CreateAppointmentDto) {
+    // 1. Valider le verrou
+    const lockValid = await this.slotEngine.validateLock(dto.lockToken);
+    if (!lockValid) {
+      // Proposer le prochain créneau
+      const next = await this.slotEngine.findNextAvailable(
+        { salonId, serviceId: dto.serviceId, animalId: dto.animalId, offerType: dto.offerType },
+        new Date(dto.slotStart),
       );
+      throw new BadRequestException({
+        message: 'Verrou expiré ou invalide. Le créneau a peut-être été pris.',
+        nextAvailable: next,
+      });
+    }
+
+    // 2. Vérifier que l'animal appartient au client
+    const pet = await this.prisma.pet.findUnique({ where: { id: dto.animalId } });
+    if (!pet || pet.ownerId !== clientId) {
+      throw new ForbiddenException('Cet animal ne vous appartient pas');
+    }
+
+    // 3. Déterminer le mode de validation
+    const config = await this.prisma.salonConfig.findFirst({ where: { salonId } });
+    const isAutoConfirm = config?.validationMode === 'AUTO';
+
+    // 4. Créer le RDV
+    try {
+      const appointment = await this.prisma.$transaction(async (tx) => {
+        // Double-check pas de conflit
+        const overlap = await tx.appointment.findFirst({
+          where: {
+            salonId,
+            tableId: dto.tableId,
+            status: { notIn: ['CANCELLED', 'REJECTED', 'NO_SHOW'] },
+            slotStart: { lt: new Date(dto.slotEnd) },
+            slotEnd: { gt: new Date(dto.slotStart) },
+          },
+        });
+
+        if (overlap) {
+          throw new BadRequestException('Ce créneau vient d\'être pris');
+        }
+
+        return tx.appointment.create({
+          data: {
+            clientId,
+            salonId,
+            serviceId: dto.serviceId,
+            petId: dto.animalId,
+            tableId: dto.tableId,
+            staffId: dto.staffId,
+            offerType: dto.offerType,
+            slotStart: new Date(dto.slotStart),
+            slotEnd: new Date(dto.slotEnd),
+            formationBlock: dto.formationBlock,
+            durationMinutes: dto.durationMinutes ?? dayjs(dto.slotEnd).diff(dayjs(dto.slotStart), 'minute'),
+            status: isAutoConfirm ? 'CONFIRMED' : 'PENDING',
+            confirmedAt: isAutoConfirm ? new Date() : null,
+            expiresAt: !isAutoConfirm
+              ? dayjs().add(config?.pendingExpiryHours ?? 24, 'hour').toDate()
+              : null,
+            notes: dto.notes,
+          },
+          include: { service: true, salon: true, pet: true, staff: true, table: true },
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+      // 5. Libérer le verrou
+      await this.slotEngine.releaseLock(dto.lockToken);
 
       return appointment;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        // P2034: Serialization conflict
-        if (error.code === 'P2034') {
-          throw new BadRequestException(
-            'This time slot was just booked by someone else. Please try again.',
-          );
-        }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        throw new BadRequestException('Ce créneau vient d\'être réservé. Veuillez réessayer.');
       }
       throw error;
     }
   }
 
-  async findAllMy(userId: string, page: number = 1, limit: number = 20) {
-    const whereConditions: any[] = [{ clientId: userId }];
-    const profile = await this.prisma.providerProfile.findUnique({
-      where: { userId },
-    });
-    if (profile) {
-      whereConditions.push({ providerId: profile.id });
-    }
+  // ─── LECTURE ─────────────────────────────────────
 
+  async findAllForClient(clientId: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
-
     const [items, total] = await Promise.all([
       this.prisma.appointment.findMany({
-        where: { OR: whereConditions },
-        include: { service: true, provider: true, client: true, pet: true },
-        orderBy: { startTime: 'desc' },
+        where: { clientId },
+        include: { service: true, salon: true, pet: true, staff: true, table: true },
+        orderBy: { slotStart: 'desc' },
         skip,
         take: limit,
       }),
-      this.prisma.appointment.count({
-        where: { OR: whereConditions },
-      }),
+      this.prisma.appointment.count({ where: { clientId } }),
     ]);
+    return { items, total, page, limit };
+  }
 
-    return {
-      items,
-      total,
-      page,
-      limit,
-    };
+  async findAllForSalon(userId: string, page = 1, limit = 50) {
+    const profile = await this.prisma.providerProfile.findUnique({ where: { userId } });
+    if (!profile) throw new ForbiddenException('Profil prestataire requis');
+
+    const skip = (page - 1) * limit;
+    const [items, total] = await Promise.all([
+      this.prisma.appointment.findMany({
+        where: { salonId: profile.id },
+        include: { service: true, client: true, pet: true, staff: true, table: true },
+        orderBy: { slotStart: 'asc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.appointment.count({ where: { salonId: profile.id } }),
+    ]);
+    return { items, total, page, limit };
+  }
+
+  async findPending(userId: string) {
+    const profile = await this.prisma.providerProfile.findUnique({ where: { userId } });
+    if (!profile) throw new ForbiddenException('Profil prestataire requis');
+
+    return this.prisma.appointment.findMany({
+      where: { salonId: profile.id, status: 'PENDING' },
+      include: { service: true, client: true, pet: true, staff: true, table: true },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
   async findOne(id: string) {
-    return this.prisma.appointment.findUnique({
+    const apt = await this.prisma.appointment.findUnique({
       where: { id },
-      include: { service: true, provider: true, client: true, pet: true },
+      include: { service: true, salon: true, client: true, pet: true, staff: true, table: true },
     });
+    if (!apt) throw new NotFoundException('RDV non trouvé');
+    return apt;
   }
 
-  async updateStatus(
-    userId: string,
-    appointmentId: string,
-    dto: UpdateAppointmentStatusDto,
-  ) {
+  // ─── MISE À JOUR STATUT ─────────────────────────
+
+  async updateStatus(userId: string, appointmentId: string, dto: UpdateAppointmentStatusDto) {
     const appointment = await this.findOne(appointmentId);
-    if (!appointment) throw new NotFoundException('Appointment not found');
 
     const isClient = appointment.clientId === userId;
-    let isProvider = false;
-    const providerProfile = await this.prisma.providerProfile.findUnique({
-      where: { userId },
-    });
-    if (providerProfile && providerProfile.id === appointment.providerId) {
-      isProvider = true;
-    }
+    const profile = await this.prisma.providerProfile.findUnique({ where: { userId } });
+    const isProvider = profile?.id === appointment.salonId;
 
     if (!isClient && !isProvider) {
-      throw new ForbiddenException('Not authorized to update this appointment');
+      throw new ForbiddenException('Non autorisé');
     }
 
+    // Règles de transition
     if (isClient) {
       if (dto.status !== 'CANCELLED') {
-        throw new ForbiddenException('Clients can only cancel appointments');
+        throw new ForbiddenException('Le client ne peut qu\'annuler');
+      }
+      // Vérifier le délai d'annulation
+      const config = await this.prisma.salonConfig.findFirst({ where: { salonId: appointment.salonId } });
+      const deadline = config?.cancelDeadlineHours ?? 24;
+      const hoursBeforeAppt = dayjs(appointment.slotStart).diff(dayjs(), 'hour');
+      if (hoursBeforeAppt < deadline) {
+        throw new BadRequestException(
+          `Annulation impossible moins de ${deadline}h avant le RDV. Contactez le salon.`,
+        );
       }
     }
+
+    const data: any = { status: dto.status };
+    if (dto.status === 'CONFIRMED') data.confirmedAt = new Date();
+    if (dto.status === 'REJECTED') data.rejectionReason = dto.rejectionReason;
 
     return this.prisma.appointment.update({
       where: { id: appointmentId },
-      data: { status: dto.status },
+      data,
+      include: { service: true, salon: true, pet: true, staff: true, table: true },
     });
   }
 
-  async getAvailableSlots(providerId: string, serviceId: string, date: string) {
-    const targetDate = dayjs(date, 'YYYY-MM-DD', true);
-    if (!targetDate.isValid())
-      throw new BadRequestException('Invalid date format YYYY-MM-DD');
+  // ─── EXPIRATION AUTO ────────────────────────────
 
-    const service = await this.prisma.service.findUnique({
-      where: { id: serviceId },
-    });
-    if (!service) throw new NotFoundException('Service not found');
-    if (service.providerId !== providerId)
-      throw new BadRequestException('Service does not belong to provider');
-
-    const dayOfWeek = targetDate.day();
-    const workingHours = await this.prisma.workingHours.findFirst({
-      where: { providerId, dayOfWeek },
-    });
-
-    if (!workingHours) return [];
-
-    const [startH, startM] = workingHours.startTime.split(':').map(Number);
-    const [endH, endM] = workingHours.endTime.split(':').map(Number);
-
-    const workStart = targetDate
-      .hour(startH)
-      .minute(startM)
-      .second(0)
-      .millisecond(0);
-    const workEnd = targetDate.hour(endH).minute(endM).second(0).millisecond(0);
-
-    // Get Absences
-    const absences = await this.prisma.providerAbsence.findMany({
+  async expirePendingAppointments() {
+    const expired = await this.prisma.appointment.updateMany({
       where: {
-        providerId,
-        startDate: { lte: workEnd.toDate() },
-        endDate: { gte: workStart.toDate() },
+        status: 'PENDING',
+        expiresAt: { lt: new Date() },
       },
+      data: { status: 'CANCELLED' },
     });
-
-    // Check if whole day is absent
-    const isFullDayAbsence = absences.some(
-      (abs) =>
-        dayjs(abs.startDate).isSameOrBefore(workStart) &&
-        dayjs(abs.endDate).isSameOrAfter(workEnd),
-    );
-    if (isFullDayAbsence) return [];
-
-    const existingAppointments = await this.prisma.appointment.findMany({
-      where: {
-        providerId,
-        status: { not: 'CANCELLED' },
-        startTime: { gte: workStart.toDate(), lt: workEnd.toDate() },
-      },
-    });
-
-    const slots: string[] = [];
-    let cursor = workStart;
-    const stepMinutes = service.duration;
-
-    // Prepare Break times if any
-    let breakStart: dayjs.Dayjs | null = null;
-    let breakEnd: dayjs.Dayjs | null = null;
-
-    if (workingHours.breakStartTime && workingHours.breakEndTime) {
-      const [bStartH, bStartM] = workingHours.breakStartTime
-        .split(':')
-        .map(Number);
-      const [bEndH, bEndM] = workingHours.breakEndTime.split(':').map(Number);
-      breakStart = targetDate
-        .hour(bStartH)
-        .minute(bStartM)
-        .second(0)
-        .millisecond(0);
-      breakEnd = targetDate.hour(bEndH).minute(bEndM).second(0).millisecond(0);
-    }
-
-    while (cursor.add(service.duration, 'minute').isSameOrBefore(workEnd)) {
-      const slotEnd = cursor.add(service.duration, 'minute');
-
-      // 1. Check Appointment Overlap
-      const isApptOverlap = existingAppointments.some((appt) => {
-        const apptStart = dayjs(appt.startTime);
-        const apptEnd = dayjs(appt.endTime);
-        return cursor.isBefore(apptEnd) && slotEnd.isAfter(apptStart);
-      });
-
-      // 2. Check Break Overlap
-      let isBreakOverlap = false;
-      if (breakStart && breakEnd) {
-        // (Start < BreakEnd) and (End > BreakStart)
-        if (cursor.isBefore(breakEnd) && slotEnd.isAfter(breakStart)) {
-          isBreakOverlap = true;
-        }
-      }
-
-      // 3. Check Absence Overlap
-      const isAbsenceOverlap = absences.some((abs) => {
-        const absStart = dayjs(abs.startDate);
-        const absEnd = dayjs(abs.endDate);
-        return cursor.isBefore(absEnd) && slotEnd.isAfter(absStart);
-      });
-
-      if (!isApptOverlap && !isBreakOverlap && !isAbsenceOverlap) {
-        slots.push(cursor.toISOString());
-      }
-
-      cursor = cursor.add(stepMinutes, 'minute');
-    }
-
-    return slots;
+    return { expiredCount: expired.count };
   }
 }

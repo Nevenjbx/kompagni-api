@@ -110,7 +110,8 @@ describe('Kompagni API - Full E2E Flow', () => {
         data: {
           id: mockProviderId,
           email: 'e2e-provider@test.com',
-          name: 'E2E Test Provider',
+          firstName: 'E2E Test Provider',
+          lastName: 'Provider',
           role: Role.PROVIDER,
         },
       });
@@ -122,7 +123,8 @@ describe('Kompagni API - Full E2E Flow', () => {
         data: {
           id: mockClientId,
           email: 'e2e-client@test.com',
-          name: 'E2E Test Client',
+          firstName: 'E2E Test Client',
+          lastName: 'Client',
           role: Role.CLIENT,
         },
       });
@@ -210,9 +212,10 @@ describe('Kompagni API - Full E2E Flow', () => {
         .send({
           name: 'E2E Toilettage Chien',
           description: 'Bain, coupe, griffes, oreilles',
-          duration: 60,
-          price: 50.0,
+          defaultDurationPro: 60,
+          priceTiers: [{ maxWeightKg: null, price: 50.0 }],
           animalType: 'DOG',
+          availableModes: ['PRO'],
         })
         .expect(201);
 
@@ -238,7 +241,7 @@ describe('Kompagni API - Full E2E Flow', () => {
         .expect(200);
 
       expect(response.body.id).toBe(serviceId);
-      expect(response.body.duration).toBe(60);
+      expect(response.body.defaultDurationPro).toBe(60);
     });
   });
 
@@ -361,7 +364,7 @@ describe('Kompagni API - Full E2E Flow', () => {
 
       const response = await request(app.getHttpServer())
         .get(
-          `/appointments/available-slots?providerId=${providerProfileId}&serviceId=${serviceId}&date=${dateStr}`,
+          `/appointments/available-slots?salonId=${providerProfileId}&serviceId=${serviceId}&animalId=dummy&offerType=PRO`,
         )
         .set('Authorization', 'Bearer mock-client-token')
         .expect(200);
@@ -381,7 +384,13 @@ describe('Kompagni API - Full E2E Flow', () => {
         .set('Authorization', 'Bearer mock-client-token')
         .send({
           serviceId: serviceId,
-          startTime: bookingTime.toISOString(),
+          animalId: 'e2e-dummy-pet-id', // Assuming we mocked or bypassed pet check in e2e or we'll need a pet
+          offerType: 'PRO',
+          lockToken: 'dummy-token',
+          slotStart: bookingTime.toISOString(),
+          slotEnd: new Date(bookingTime.getTime() + 60*60000).toISOString(),
+          tableId: 'dummy-table',
+          staffId: 'dummy-staff',
           notes: 'E2E test appointment',
         })
         .expect(201);

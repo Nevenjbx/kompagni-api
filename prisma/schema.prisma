@@ -13,53 +13,29 @@ datasource db {
 }
 
 // ==============================================
-// ENUMS (Types énumérés)
+// ENUMS
 // ==============================================
 
 enum Role {
-  CLIENT      // Propriétaire d'animal
-  PROVIDER    // Prestataire (toiletteur, véto, etc.)
-  ADMIN       // Administrateur
+  CLIENT
+  PROVIDER
+  ADMIN
 }
 
 enum AppointmentStatus {
-  PENDING     // En attente de confirmation
-  CONFIRMED   // Confirmé
-  COMPLETED   // Terminé
-  CANCELLED   // Annulé
+  PENDING
+  CONFIRMED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
 }
 
 enum AnimalType {
-  DOG         // Chien
-  CAT         // Chat
-  OTHER       // Autre
-}
-
-// ==============================================
-// MODÈLES (Tables)
-// ==============================================
-
-// Table des utilisateurs (clients et prestataires)
-model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  firstName     String?   // Prénom
-  lastName      String?   // Nom de famille
-  phoneNumber   String?
-  role          Role      @default(CLIENT)
-  
-  isDeleted     Boolean   @default(false) // Soft delete flag
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  // Relations
-  providerProfile ProviderProfile? // Si prestataire
-  appointments    Appointment[]    // Rendez-vous pris (si client) ou reçus (si prestataire)
-  pets            Pet[]
-  favoriteProviders ProviderProfile[] @relation("UserFavorites") // New relation
-
-  @@map("users")
+  DOG
+  CAT
+  OTHER
 }
 
 enum PetSize {
@@ -77,6 +53,66 @@ enum PetCharacter {
   ENERGETIC
 }
 
+enum OfferType {
+  PRO
+  FORMATION
+}
+
+enum StaffRole {
+  PRO
+  APPRENTI
+}
+
+enum TableCategory {
+  SMALL
+  LARGE
+  CAT
+}
+
+enum BlockType {
+  FULL_DAY
+  HALF_DAY
+  TIME_RANGE
+}
+
+enum BlockScope {
+  SALON
+  TABLE
+  STAFF
+}
+
+enum ValidationMode {
+  AUTO
+  MANUAL
+}
+
+// ==============================================
+// UTILISATEURS
+// ==============================================
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  firstName   String?
+  lastName    String?
+  phoneNumber String?
+  role        Role     @default(CLIENT)
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  providerProfile   ProviderProfile?
+  appointments      Appointment[]
+  pets              Pet[]
+  favoriteProviders ProviderProfile[] @relation("UserFavorites")
+
+  @@map("users")
+}
+
+// ==============================================
+// ANIMAUX
+// ==============================================
+
 model Pet {
   id        String       @id @default(uuid())
   ownerId   String
@@ -85,144 +121,319 @@ model Pet {
   breed     String
   size      PetSize
   character PetCharacter
+  weightKg  Float?       // Poids en kg — utilisé pour le filtrage des prestations
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relation
-  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  appointments Appointment[]
+  owner         User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  appointments  Appointment[]
   providerNotes ProviderPetNote[]
 
   @@map("pets")
 }
 
-// Profil prestataire (toiletteur, véto, etc.)
+// ==============================================
+// SALON (ex Provider)
+// ==============================================
+
 model ProviderProfile {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  businessName    String   // Nom du salon/cabinet
-  description     String?
-  address         String
-  city            String
-  postalCode      String
-  latitude        Float?
-  longitude       Float?
-  tags            String[]
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // Relations
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  services        Service[]
-  workingHours    WorkingHours[]
-  absences        ProviderAbsence[]
-  appointments    Appointment[]
-  petNotes        ProviderPetNote[]
-  favoritedBy     User[]            @relation("UserFavorites") // New relation
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  businessName String
+  description  String?
+  address      String
+  city         String
+  postalCode   String
+  latitude     Float?
+  longitude    Float?
+  tags         String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salonConfig  SalonConfig?
+  services     Service[]
+  workingHours WorkingHours[]
+  absences     ProviderAbsence[]
+  appointments Appointment[]
+  petNotes     ProviderPetNote[]
+  favoritedBy  User[]            @relation("UserFavorites")
+  staff        StaffMember[]
+  tables       GroomingTable[]
+  manualBlocks ManualBlock[]
 
   @@map("provider_profiles")
 }
 
-// Services proposés par les prestataires
+// ==============================================
+// CONFIGURATION SALON
+// ==============================================
+
+model SalonConfig {
+  id        String @id @default(uuid())
+  salonId   String @unique
+
+  // Validation des RDV
+  validationMode      ValidationMode @default(AUTO)
+  pendingExpiryHours  Int            @default(24)
+
+  // Planning Pro
+  slotGranularityMin  Int @default(30)
+  planningHorizonDays Int @default(14)
+
+  // Blocs Formation (JSON: [{name, start, end}])
+  formationBlocks  Json @default("[{\"name\":\"Matin\",\"start\":\"09:00\",\"end\":\"13:00\"},{\"name\":\"Après-midi\",\"start\":\"13:00\",\"end\":\"17:00\"}]")
+  formationDiscount Float @default(0) // Réduction en € sur le prix Pro
+
+  // Annulation client
+  cancelDeadlineHours Int @default(24)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  salon ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
+
+  @@map("salon_configs")
+}
+
+// ==============================================
+// TABLES DE TOILETTAGE
+// ==============================================
+
+model GroomingTable {
+  id       String        @id @default(uuid())
+  salonId  String
+  name     String
+  category TableCategory
+  isActive Boolean       @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  salon        ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@map("grooming_tables")
+}
+
+// ==============================================
+// STAFF
+// ==============================================
+
+model StaffMember {
+  id      String    @id @default(uuid())
+  salonId String
+  name    String
+  role    StaffRole
+
+  // Disponibilités hebdo (JSON: [{dayOfWeek, startTime, endTime}])
+  weeklySchedule Json @default("[]")
+  // Congés (JSON: [{startDate, endDate, reason?}])
+  leaves         Json @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  salon             ProviderProfile      @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  serviceDurations  StaffServiceDuration[]
+  appointments      Appointment[]
+
+  @@map("staff_members")
+}
+
+// ==============================================
+// DURÉE PAR STAFF PAR PRESTATION
+// ==============================================
+
+model StaffServiceDuration {
+  id              String @id @default(uuid())
+  staffId         String
+  serviceId       String
+  durationMinutes Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff   StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  service Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, serviceId])
+  @@map("staff_service_durations")
+}
+
+// ==============================================
+// PRESTATIONS
+// ==============================================
+
 model Service {
-  id              String      @id @default(uuid())
-  providerId      String
-  name            String      // Ex: "Toilettage complet chien"
-  description     String?
-  duration        Int         // Durée en minutes
-  price           Float       // Prix en euros
-  animalType      AnimalType
-  
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  
-  // Relations
-  provider        ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  appointments    Appointment[]
-  
+  id          String     @id @default(uuid())
+  providerId  String
+  name        String
+  description String?
+  animalType  AnimalType
+
+  // Modes disponibles
+  availableModes OfferType[] @default([PRO])
+
+  // Durées par défaut (minutes)
+  defaultDurationPro  Int @default(60)
+  defaultDurationForm Int @default(180)
+
+  // Tranches de prix (JSON: [{maxWeightKg, price}])
+  // Ex: [{"maxWeightKg":7,"price":40},{"maxWeightKg":12,"price":50},{"maxWeightKg":null,"price":80}]
+  priceTiers Json @default("[{\"maxWeightKg\":null,\"price\":50}]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  provider         ProviderProfile      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  appointments     Appointment[]
+  staffDurations   StaffServiceDuration[]
+
   @@map("services")
 }
 
-// Horaires de travail des prestataires
+// ==============================================
+// HORAIRES & ABSENCES (existants, conservés)
+// ==============================================
+
 model WorkingHours {
-  id              String   @id @default(uuid())
-  providerId      String
-  dayOfWeek       Int      // 0 = Dimanche, 1 = Lundi, ..., 6 = Samedi
-  startTime       String   // Format "09:00"
-  endTime         String   // Format "18:00"
-  breakStartTime  String?  // Format "12:00" (Optional)
-  breakEndTime    String?  // Format "13:00" (Optional)
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // Relations
-  provider        ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  
+  id             String  @id @default(uuid())
+  providerId     String
+  dayOfWeek      Int     // 0=Dim, 1=Lun, ..., 6=Sam
+  startTime      String  // "09:00"
+  endTime        String  // "18:00"
+  breakStartTime String?
+  breakEndTime   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
   @@map("working_hours")
 }
 
-// Absences / Vacances
 model ProviderAbsence {
-  id              String   @id @default(uuid())
-  providerId      String
-  
-  startDate       DateTime
-  endDate         DateTime
-  reason          String?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // Relations
-  provider        ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  
+  id         String   @id @default(uuid())
+  providerId String
+  startDate  DateTime
+  endDate    DateTime
+  reason     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
   @@map("provider_absences")
 }
 
-// Rendez-vous
-model Appointment {
-  id              String             @id @default(uuid())
-  clientId        String
-  providerId      String
-  serviceId       String
-  
-  startTime       DateTime
-  endTime         DateTime
-  status          AppointmentStatus  @default(PENDING)
-  notes           String?            // Notes du client
-  
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  
-  // Relations
-  client          User               @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  provider        ProviderProfile    @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  service         Service            @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  pet             Pet?               @relation(fields: [petId], references: [id])
-  petId           String?
-  
-  @@map("appointments")
-  @@index([providerId, startTime]) // Optimize availability checks
-  @@index([clientId, startTime])   // Optimize client history
+// ==============================================
+// BLOCAGES MANUELS
+// ==============================================
+
+model ManualBlock {
+  id      String     @id @default(uuid())
+  salonId String
+  type    BlockType
+  scope   BlockScope
+  date    DateTime
+
+  halfDay       String?  // "MORNING" | "AFTERNOON" (si type=HALF_DAY)
+  startTime     String?  // "14:00" (si type=TIME_RANGE)
+  endTime       String?  // "15:30" (si type=TIME_RANGE)
+  targetTableId String?  // FK logique (si scope=TABLE)
+  targetStaffId String?  // FK logique (si scope=STAFF)
+  reason        String?
+
+  createdAt DateTime @default(now())
+
+  salon ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
+
+  @@map("manual_blocks")
 }
 
-model ProviderPetNote {
-  id          String   @id @default(uuid())
-  petId       String
-  providerId  String
-  note        String
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+// ==============================================
+// VERROU ANTI DOUBLE-BOOKING
+// ==============================================
+
+model SlotLock {
+  id        String   @id @default(uuid())
+  slotKey   String   // "tableId_date_startTime"
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([slotKey])
+  @@index([expiresAt])
+  @@map("slot_locks")
+}
+
+// ==============================================
+// RENDEZ-VOUS
+// ==============================================
+
+model Appointment {
+  id        String @id @default(uuid())
+  clientId  String
+  salonId   String
+  serviceId String
+  petId     String?
+  tableId   String?
+  staffId   String?
+
+  // Mode & timing
+  offerType       OfferType
+  slotStart       DateTime
+  slotEnd         DateTime
+  formationBlock  String?  // "Matin" | "Après-midi" (si Formation)
+  durationMinutes Int
+
+  // Statut
+  status          AppointmentStatus @default(PENDING)
+  rejectionReason String?
+  internalNotes   String?
+  notes           String?          // Notes du client
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  confirmedAt DateTime?
+  expiresAt   DateTime? // Pour les RDV en attente de validation
+
   // Relations
-  pet         Pet             @relation(fields: [petId], references: [id], onDelete: Cascade)
-  provider    ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  
-  @@unique([petId, providerId]) // One note per pet per provider
+  client  User            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  salon   ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  service Service         @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  pet     Pet?            @relation(fields: [petId], references: [id])
+  table   GroomingTable?  @relation(fields: [tableId], references: [id])
+  staff   StaffMember?    @relation(fields: [staffId], references: [id])
+
+  @@index([salonId, slotStart])
+  @@index([clientId, slotStart])
+  @@index([status])
+  @@map("appointments")
+}
+
+// ==============================================
+// NOTES PROVIDER SUR ANIMAUX
+// ==============================================
+
+model ProviderPetNote {
+  id         String @id @default(uuid())
+  petId      String
+  providerId String
+  note       String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pet      Pet             @relation(fields: [petId], references: [id], onDelete: Cascade)
+  provider ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([petId, providerId])
   @@map("provider_pet_notes")
 }
 
@@ -231,11 +442,11 @@ model ProviderPetNote {
 // ==============================================
 
 model WaitlistLead {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  profile   String   // "particulier" or "professionnel"
-  city      String?
-  
+  id      String @id @default(uuid())
+  email   String @unique
+  profile String
+  city    String?
+
   createdAt DateTime @default(now())
 
   @@map("waitlist_leads")

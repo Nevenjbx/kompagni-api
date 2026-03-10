@@ -4,10 +4,12 @@ import {
   IsOptional,
   IsNumber,
   IsEnum,
+  IsArray,
+  IsInt,
   Min,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { AnimalType } from '@prisma/client';
+import { AnimalType, OfferType } from '@prisma/client';
 
 export class CreateServiceDto {
   @ApiProperty()
@@ -20,19 +22,31 @@ export class CreateServiceDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ example: 30 })
-  @IsNumber()
-  @Min(0)
-  duration: number; // minutes
-
-  @ApiProperty({ example: 50.0 })
-  @IsNumber()
-  @Min(0)
-  price: number;
-
   @ApiProperty({ enum: AnimalType })
   @IsEnum(AnimalType)
   animalType: AnimalType;
+
+  @ApiProperty({ enum: OfferType, isArray: true, default: ['PRO'] })
+  @IsArray()
+  @IsOptional()
+  availableModes?: OfferType[];
+
+  @ApiProperty({ example: 60 })
+  @IsInt()
+  @Min(5)
+  defaultDurationPro: number;
+
+  @ApiProperty({ required: false, example: 180 })
+  @IsInt()
+  @Min(5)
+  @IsOptional()
+  defaultDurationForm?: number;
+
+  @ApiProperty({
+    description: 'Tranches de prix JSON: [{maxWeightKg, price}]',
+    example: [{ maxWeightKg: 7, price: 40 }, { maxWeightKg: null, price: 60 }],
+  })
+  priceTiers: any;
 }
 
 export class UpdateServiceDto {
@@ -46,20 +60,29 @@ export class UpdateServiceDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ required: false })
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  duration?: number;
-
-  @ApiProperty({ required: false })
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  price?: number;
-
   @ApiProperty({ required: false, enum: AnimalType })
   @IsEnum(AnimalType)
   @IsOptional()
   animalType?: AnimalType;
+
+  @ApiProperty({ required: false })
+  @IsArray()
+  @IsOptional()
+  availableModes?: OfferType[];
+
+  @ApiProperty({ required: false })
+  @IsInt()
+  @Min(5)
+  @IsOptional()
+  defaultDurationPro?: number;
+
+  @ApiProperty({ required: false })
+  @IsInt()
+  @Min(5)
+  @IsOptional()
+  defaultDurationForm?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  priceTiers?: any;
 }
