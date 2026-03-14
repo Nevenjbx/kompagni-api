@@ -170,4 +170,20 @@ export class UsersService {
     });
     return user?.favoriteProviders || [];
   }
+
+  // --- Blocking ---
+
+  async blockClient(clientId: string, reason?: string) {
+    return this.prisma.user.update({
+      where: { id: clientId },
+      data: { isBlocked: true, blockedReason: reason },
+    });
+  }
+
+  async unblockClient(clientId: string) {
+    return this.prisma.user.update({
+      where: { id: clientId },
+      data: { isBlocked: false, blockedReason: null },
+    });
+  }
 }

@@ -9,7 +9,6 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { AnimalType, OfferType } from '@prisma/client';
 
 export class CreateServiceDto {
   @ApiProperty()
@@ -22,31 +21,9 @@ export class CreateServiceDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ enum: AnimalType })
-  @IsEnum(AnimalType)
-  animalType: AnimalType;
-
-  @ApiProperty({ enum: OfferType, isArray: true, default: ['PRO'] })
+  @ApiProperty({ description: 'Array of species supported by this service', isArray: true })
   @IsArray()
-  @IsOptional()
-  availableModes?: OfferType[];
-
-  @ApiProperty({ example: 60 })
-  @IsInt()
-  @Min(5)
-  defaultDurationPro: number;
-
-  @ApiProperty({ required: false, example: 180 })
-  @IsInt()
-  @Min(5)
-  @IsOptional()
-  defaultDurationForm?: number;
-
-  @ApiProperty({
-    description: 'Tranches de prix JSON: [{maxWeightKg, price}]',
-    example: [{ maxWeightKg: 7, price: 40 }, { maxWeightKg: null, price: 60 }],
-  })
-  priceTiers: any;
+  animalTypes: string[];
 }
 
 export class UpdateServiceDto {
@@ -60,29 +37,8 @@ export class UpdateServiceDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ required: false, enum: AnimalType })
-  @IsEnum(AnimalType)
-  @IsOptional()
-  animalType?: AnimalType;
-
   @ApiProperty({ required: false })
   @IsArray()
   @IsOptional()
-  availableModes?: OfferType[];
-
-  @ApiProperty({ required: false })
-  @IsInt()
-  @Min(5)
-  @IsOptional()
-  defaultDurationPro?: number;
-
-  @ApiProperty({ required: false })
-  @IsInt()
-  @Min(5)
-  @IsOptional()
-  defaultDurationForm?: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  priceTiers?: any;
+  animalTypes?: string[];
 }

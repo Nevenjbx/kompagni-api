@@ -10,7 +10,6 @@ export class CreateManualBlockDto {
   halfDay?: string;
   startTime?: string;
   endTime?: string;
-  targetTableId?: string;
   targetStaffId?: string;
   reason?: string;
 }
@@ -36,7 +35,6 @@ export class ManualBlocksService {
         halfDay: dto.halfDay,
         startTime: dto.startTime,
         endTime: dto.endTime,
-        targetTableId: dto.targetTableId,
         targetStaffId: dto.targetStaffId,
         reason: dto.reason,
       },

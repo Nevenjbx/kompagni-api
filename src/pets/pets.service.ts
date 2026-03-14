@@ -1,12 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Pet, PetSize, PetCharacter, AnimalType } from '@prisma/client';
+import { Pet, AnimalCategory, CoatType, GroomingBehavior, SkinCondition } from '@prisma/client';
 
 @Injectable()
 export class PetsService {
     constructor(private prisma: PrismaService) { }
 
-    async createPet(ownerId: string, data: { name: string; type: AnimalType; breed: string; size: PetSize; character: PetCharacter }): Promise<Pet> {
+    async createPet(ownerId: string, data: { 
+        name: string; 
+        species: string;
+        breedId: string;
+        birthDate: Date;
+        isNeutered: boolean;
+        sex: any;
+        weightKg: number;
+        category: AnimalCategory;
+        coatType: CoatType;
+        groomingBehavior: GroomingBehavior;
+        skinCondition: SkinCondition;
+    }): Promise<Pet> {
         return this.prisma.pet.create({
             data: {
                 ...data,
@@ -31,49 +43,25 @@ export class PetsService {
         });
     }
 
-    async getProviderPetNote(petId: string, providerUserId: string): Promise<string | null> {
-        // Find provider profile id from user id
-        const provider = await this.prisma.providerProfile.findUnique({
-            where: { userId: providerUserId },
+    // --- Refinements ---
+
+    async addRefinement(petId: string, salonId: string, data: any) {
+        const pet = await this.prisma.pet.findUnique({ where: { id: petId } });
+        if (!pet) throw new NotFoundException('Pet not found');
+
+        return this.prisma.animalRefinement.create({
+            data: {
+                animalId: petId,
+                salonId,
+                ...data, // expects weightKg, coatType, groomingBehavior, skinCondition, notes
+            }
         });
-
-        if (!provider) return null;
-
-        const note = await this.prisma.providerPetNote.findUnique({
-            where: {
-                petId_providerId: {
-                    petId,
-                    providerId: provider.id,
-                },
-            },
-        });
-
-        return note?.note || null;
     }
 
-    async upsertProviderPetNote(petId: string, providerUserId: string, noteContent: string): Promise<void> {
-        // Find provider profile id from user id
-        const provider = await this.prisma.providerProfile.findUnique({
-            where: { userId: providerUserId },
-        });
-
-        if (!provider) throw new Error('Provider profile not found');
-
-        await this.prisma.providerPetNote.upsert({
-            where: {
-                petId_providerId: {
-                    petId,
-                    providerId: provider.id,
-                },
-            },
-            create: {
-                petId,
-                providerId: provider.id,
-                note: noteContent,
-            },
-            update: {
-                note: noteContent,
-            },
+    async getRefinements(petId: string) {
+        return this.prisma.animalRefinement.findMany({
+            where: { animalId: petId },
+            orderBy: { createdAt: 'desc' },
         });
     }
 }

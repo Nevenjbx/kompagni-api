@@ -1,248 +1,182 @@
-import { PrismaClient, Role, AnimalType, OfferType, StaffRole, TableCategory, ValidationMode, PetSize, PetCharacter } from '@prisma/client';
-import { createClient } from '@supabase/supabase-js';
-import * as dotenv from 'dotenv';
-
-dotenv.config();
+import { PrismaClient, Role, StaffRole, AnimalCategory, CoatType, GroomingBehavior, SkinCondition, ValidationMode } from '@prisma/client';
 
 const prisma = new PrismaClient();
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
-
-async function createSupabaseUser(email: string, role: string, fullName: string) {
-  console.log(`Vérification/Création de l'utilisateur Supabase : ${email}`);
-  
-  // Chercher si l'utilisateur existe déjà
-  const { data: listUsers, error: listError } = await supabase.auth.admin.listUsers();
-  if (listError) throw listError;
-  
-  const existingUser = listUsers.users.find(u => u.email === email);
-  
-  if (existingUser) {
-    console.log(`L'utilisateur ${email} existe déjà dans Supabase (ID: ${existingUser.id})`);
-    return existingUser.id;
-  }
-
-  // Créer l'utilisateur s'il n'existe pas
-  const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-    email,
-    password: 'password123', // Mot de passe par défaut pour le test
-    email_confirm: true,
-    user_metadata: {
-      role: role,
-      full_name: fullName
-    }
-  });
-
-  if (createError) throw createError;
-  console.log(`Utilisateur ${email} créé dans Supabase (ID: ${newUser.user.id})`);
-  return newUser.user.id;
-}
 
 async function main() {
-  console.log('🚀 Début du seeding approfondi avec intégration Supabase...');
+  console.log('Seeding KAIROS v1.6 database...');
 
-  // Nettoyage complet pour repartir sur une base saine
-  console.log('🧹 Nettoyage de la base de données...');
+  // 1. Clean existing data (careful order for FKs)
+  await prisma.priceAdjustment.deleteMany();
+  await prisma.animalRefinement.deleteMany();
   await prisma.appointment.deleteMany();
-  await prisma.staffServiceDuration.deleteMany();
-  await prisma.staffMember.deleteMany();
-  await prisma.groomingTable.deleteMany();
+  await prisma.slotLock.deleteMany();
+  await prisma.manualBlock.deleteMany();
+  await prisma.modifierRule.deleteMany();
+  await prisma.baseRule.deleteMany();
   await prisma.service.deleteMany();
+  await prisma.staffMember.deleteMany();
+  await prisma.workingHours.deleteMany();
+  await prisma.providerAbsence.deleteMany();
   await prisma.salonConfig.deleteMany();
   await prisma.providerProfile.deleteMany();
+  await prisma.pet.deleteMany();
   await prisma.user.deleteMany();
 
-  // 1. IDs des utilisateurs Supabase
-  const formationUserId = await createSupabaseUser('formation@kompagni.com', 'PROVIDER', 'Marie Formatrice');
-  const julieUserId = await createSupabaseUser('julie@kompagni.com', 'PROVIDER', 'Julie Solo');
-  const clientUserId = await createSupabaseUser('client@kompagni.com', 'CLIENT', 'Jean Client');
-
-  // --- 1. SALON DE FORMATION ---
-  await prisma.user.upsert({
-    where: { id: formationUserId },
-    update: {},
-    create: {
-      id: formationUserId,
-      email: 'formation@kompagni.com',
-      firstName: 'Marie',
-      lastName: 'Formatrice',
-      role: Role.PROVIDER,
-      providerProfile: {
-        create: {
-          businessName: 'Centre de Formation Toilettage',
-          description: 'Salon école avec encadrement professionnel.',
-          address: '42 Rue des Apprentis',
-          city: 'Lyon',
-          postalCode: '69007',
-          tags: ['Toiletteur', 'Formation', 'Chien', 'Chat'],
-          salonConfig: {
-            create: {
-              validationMode: ValidationMode.MANUAL,
-              formationDiscount: 15.0,
-              formationBlocks: [
-                { name: 'Matin', start: '08:30', end: '12:30' },
-                { name: 'Après-midi', start: '13:30', end: '17:30' }
-              ]
-            }
-          }
-        }
-      }
-    }
-  });
-
-  const formationSalon = await prisma.providerProfile.findUnique({ where: { userId: formationUserId } });
-  if (formationSalon) {
-      await prisma.groomingTable.createMany({
-        data: [
-          { name: 'Table 1 (Grande)', category: TableCategory.LARGE, salonId: formationSalon.id },
-          { name: 'Table 2 (Moyenne)', category: TableCategory.SMALL, salonId: formationSalon.id },
-          { name: 'Table 3 (Chat/Petit)', category: TableCategory.CAT, salonId: formationSalon.id },
-        ],
-        skipDuplicates: true
-      });
-
-      const mariePro = await prisma.staffMember.create({
-        data: {
-          name: 'Marie (Pro)',
-          role: StaffRole.PRO,
-          salonId: formationSalon.id,
-          weeklySchedule: [
-            { dayOfWeek: 1, startTime: '08:30', endTime: '18:00' },
-            { dayOfWeek: 2, startTime: '08:30', endTime: '18:00' },
-            { dayOfWeek: 3, startTime: '08:30', endTime: '18:00' },
-            { dayOfWeek: 4, startTime: '08:30', endTime: '18:00' },
-            { dayOfWeek: 5, startTime: '08:30', endTime: '18:00' },
-          ]
-        }
-      });
-
-      const lucasApprenti = await prisma.staffMember.create({
-        data: {
-          name: 'Lucas (Apprenti)',
-          role: StaffRole.APPRENTI,
-          salonId: formationSalon.id,
-          weeklySchedule: [
-            { dayOfWeek: 1, startTime: '09:00', endTime: '17:00' },
-            { dayOfWeek: 2, startTime: '09:00', endTime: '12:00' },
-            { dayOfWeek: 4, startTime: '09:00', endTime: '17:00' },
-            { dayOfWeek: 5, startTime: '09:00', endTime: '17:00' },
-          ]
-        }
-      });
-
-      await prisma.service.create({
-        data: {
-          name: 'Toilettage Complet Chien',
-          description: 'Bain, tonte/coupe, griffes, oreilles.',
-          animalType: AnimalType.DOG,
-          providerId: formationSalon.id,
-          availableModes: [OfferType.PRO, OfferType.FORMATION],
-          defaultDurationPro: 90,
-          defaultDurationForm: 240,
-          priceTiers: [
-            { maxWeightKg: 10, price: 50 },
-            { maxWeightKg: 25, price: 70 },
-            { maxWeightKg: null, price: 90 }
-          ],
-          staffDurations: {
-            create: [
-              { staffId: mariePro.id, durationMinutes: 75 },
-              { staffId: lucasApprenti.id, durationMinutes: 240 }
-            ]
-          }
-        }
-      });
-  }
-
-  // --- 2. SALON SOLO JULIE ---
-  await prisma.user.upsert({
-    where: { id: julieUserId },
-    update: {},
-    create: {
-      id: julieUserId,
-      email: 'julie@kompagni.com',
-      firstName: 'Julie',
-      lastName: 'Solo',
-      role: Role.PROVIDER,
-      providerProfile: {
-        create: {
-          businessName: 'Julie Toilettage',
-          description: 'Toilettage passionné en solo.',
-          address: '15 Rue de la Paix',
-          city: 'Lyon',
-          postalCode: '69002',
-          tags: ['Toiletteur', 'Solo', 'Expert'],
-          salonConfig: {
-            create: {
-              validationMode: ValidationMode.AUTO,
-            }
-          }
-        }
-      }
-    }
-  });
-
-  const julieSalon = await prisma.providerProfile.findUnique({ where: { userId: julieUserId } });
-  if (julieSalon) {
-      await prisma.groomingTable.create({
-        data: { name: 'Table Unique', category: TableCategory.SMALL, salonId: julieSalon.id }
-      });
-
-      await prisma.staffMember.create({
-        data: {
-          name: 'Julie',
-          role: StaffRole.PRO,
-          salonId: julieSalon.id,
-          weeklySchedule: [
-            { dayOfWeek: 1, startTime: '09:00', endTime: '18:00' },
-            { dayOfWeek: 2, startTime: '09:00', endTime: '18:00' },
-            { dayOfWeek: 4, startTime: '09:00', endTime: '18:00' },
-            { dayOfWeek: 5, startTime: '09:00', endTime: '18:00' },
-            { dayOfWeek: 6, startTime: '09:00', endTime: '12:00' },
-          ]
-        }
-      });
-
-      await prisma.service.create({
-        data: {
-          name: 'Bain & Brushing',
-          animalType: AnimalType.DOG,
-          providerId: julieSalon.id,
-          availableModes: [OfferType.PRO],
-          defaultDurationPro: 45,
-          priceTiers: [{ maxWeightKg: null, price: 35 }]
-        }
-      });
-  }
-
-  // --- 3. CLIENT DE TEST ---
-  await prisma.user.upsert({
-    where: { id: clientUserId },
-    update: {},
-    create: {
-      id: clientUserId,
-      email: 'client@kompagni.com',
+  // 2. Users
+  const providerUser = await prisma.user.create({
+    data: {
+      email: 'salon@kompagni.fr',
       firstName: 'Jean',
-      lastName: 'Client',
-      role: Role.CLIENT,
-      pets: {
-        create: [
-          { name: 'Rex', type: AnimalType.DOG, breed: 'Golden Retriever', size: PetSize.LARGE, character: PetCharacter.CALM, weightKg: 28 },
-          { name: 'Mimi', type: AnimalType.CAT, breed: 'Persan', size: PetSize.SMALL, character: PetCharacter.HAPPY, weightKg: 4 }
-        ]
-      }
-    }
+      lastName: 'Toiletteur',
+      role: Role.PROVIDER,
+      phoneNumber: '0123456789',
+    },
   });
 
-  console.log('✅ Seeding terminé avec succès ! Tout est prêt pour le login.');
+  const clientUser = await prisma.user.create({
+    data: {
+      email: 'client@example.com',
+      firstName: 'Alice',
+      lastName: 'Dupont',
+      role: Role.CLIENT,
+      phoneNumber: '0612345678',
+    },
+  });
+
+  // 3. Salon (ProviderProfile)
+  const salon = await prisma.providerProfile.create({
+    data: {
+      userId: providerUser.id,
+      businessName: 'Kompagni Salon Paris',
+      description: 'Toilettage expert toutes races',
+      address: '10 rue de Rivoli',
+      city: 'Paris',
+      postalCode: '75004',
+      tags: ['Expert', 'Chien', 'Chat'],
+    },
+  });
+
+  // 4. Salon Configuration
+  await prisma.salonConfig.create({
+    data: {
+      salonId: salon.id,
+      validationMode: ValidationMode.AUTO,
+      slotGranularityMin: 30,
+      planningHorizonDays: 30,
+      concurrentLimits: {
+        SMALL: 2,
+        LARGE: 1,
+        GIANT: 1,
+        CAT: 1,
+        NAC: 1,
+      },
+    },
+  });
+
+  // 5. Working Hours
+  const days = [1, 2, 3, 4, 5]; // Mon to Fri
+  for (const day of days) {
+    await prisma.workingHours.create({
+      data: {
+        providerId: salon.id,
+        dayOfWeek: day,
+        startTime: '09:00',
+        endTime: '18:00',
+        breakStartTime: '12:30',
+        breakEndTime: '13:30',
+      },
+    });
+  }
+
+  // 6. Services
+  const serviceTonte = await prisma.service.create({
+    data: {
+      providerId: salon.id,
+      name: 'Tonte complète',
+      description: 'Tonte, bain, brushing et coupe des griffes',
+      animalTypes: ['dog', 'cat'],
+    },
+  });
+
+  const serviceBain = await prisma.service.create({
+    data: {
+      providerId: salon.id,
+      name: 'Bain & Brushing',
+      description: 'Shampoing adapté, séchage et brossage',
+      animalTypes: ['dog', 'cat'],
+    },
+  });
+
+  // 7. Base Rules (Layer 1)
+  // Tonte complète rules
+  await prisma.baseRule.createMany({
+    data: [
+      { salonId: salon.id, serviceId: serviceTonte.id, minWeightKg: 0, maxWeightKg: 10, baseDurationMinutes: 60, basePrice: 45, includedMinutes: 9999, overtimeRatePerMin: 0 },
+      { salonId: salon.id, serviceId: serviceTonte.id, minWeightKg: 10, maxWeightKg: 25, baseDurationMinutes: 90, basePrice: 65, includedMinutes: 9999, overtimeRatePerMin: 0 },
+      { salonId: salon.id, serviceId: serviceTonte.id, minWeightKg: 25, maxWeightKg: 9999, baseDurationMinutes: 120, basePrice: 95, includedMinutes: 9999, overtimeRatePerMin: 0 },
+    ],
+  });
+
+  // Bain et Brushing rules
+  await prisma.baseRule.createMany({
+    data: [
+      { salonId: salon.id, serviceId: serviceBain.id, minWeightKg: 0, maxWeightKg: 10, baseDurationMinutes: 30, basePrice: 25, includedMinutes: 9999, overtimeRatePerMin: 0 },
+      { salonId: salon.id, serviceId: serviceBain.id, minWeightKg: 10, maxWeightKg: 25, baseDurationMinutes: 45, basePrice: 40, includedMinutes: 9999, overtimeRatePerMin: 0 },
+      { salonId: salon.id, serviceId: serviceBain.id, minWeightKg: 25, maxWeightKg: 9999, baseDurationMinutes: 60, basePrice: 60, includedMinutes: 9999, overtimeRatePerMin: 0 },
+    ],
+  });
+
+  // 8. Modifier Rules (Layer 2)
+  await prisma.modifierRule.createMany({
+    data: [
+      { salonId: salon.id, triggerType: 'KNOTS', addedMinutes: 15, priceEffectFlat: 10, priceEffectPercent: 0, isActive: true },
+      { salonId: salon.id, triggerType: 'BEHAVIOR_BAD', addedMinutes: 20, priceEffectFlat: 0, priceEffectPercent: 15, isActive: true },
+      { salonId: salon.id, triggerType: 'COAT_DOUBLE', addedMinutes: 30, priceEffectFlat: 20, priceEffectPercent: 0, isActive: true },
+    ],
+  });
+
+  // 9. Staff Members
+  const staffExpert = await prisma.staffMember.create({
+    data: {
+      salonId: salon.id,
+      name: 'Expert Marc',
+      role: StaffRole.PROFESSIONAL,
+      speedIndex: 1.0,
+      allowedServiceIds: [serviceTonte.id, serviceBain.id],
+      weeklySchedule: days.map(d => ({ dayOfWeek: d, startTime: '09:00', endTime: '18:00' })),
+    },
+  });
+
+  const staffApprentice = await prisma.staffMember.create({
+    data: {
+      salonId: salon.id,
+      name: 'Apprentie Julie',
+      role: StaffRole.APPRENTICE,
+      speedIndex: 1.3,
+      allowedServiceIds: [serviceTonte.id, serviceBain.id],
+      weeklySchedule: days.map(d => ({ dayOfWeek: d, startTime: '09:00', endTime: '18:00' })),
+    },
+  });
+
+  // 10. Pet
+  await prisma.pet.create({
+    data: {
+      ownerId: clientUser.id,
+      name: 'Max',
+      species: 'dog',
+      breedId: 'golden-retriever',
+      birthDate: new Date('2020-05-10'),
+      sex: 'male',
+      isNeutered: true,
+      weightKg: 28.0,
+      category: AnimalCategory.LARGE,
+      coatType: CoatType.LONG,
+      groomingBehavior: GroomingBehavior.EASY,
+      skinCondition: SkinCondition.NORMAL,
+    },
+  });
+
+  console.log('Seed completed successfully!');
 }
 
 main()

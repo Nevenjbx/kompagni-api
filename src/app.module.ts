@@ -17,7 +17,9 @@ import { validateEnv } from './config/config.validation';
 import { WaitlistModule } from './waitlist/waitlist.module';
 import { StaffModule } from './staff/staff.module';
 import { SalonConfigModule } from './salon-config/salon-config.module';
-import { TablesModule } from './tables/tables.module';
+import { RulesModule } from './rules/rules.module';
+import { PriceAdjustmentsModule } from './price-adjustments/price-adjustments.module';
+import { KairosModule } from './kairos/kairos.module';
 
 @Module({
   imports: [
@@ -45,7 +47,9 @@ import { TablesModule } from './tables/tables.module';
     WaitlistModule,
     StaffModule,
     SalonConfigModule,
-    TablesModule,
+    RulesModule,
+    PriceAdjustmentsModule,
+    KairosModule,
   ],
   controllers: [AppController],
   providers: [

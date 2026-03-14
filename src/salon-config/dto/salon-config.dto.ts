@@ -47,4 +47,8 @@ export class UpdateSalonConfigDto {
   @Min(1)
   @IsOptional()
   cancelDeadlineHours?: number;
+
+  @ApiProperty({ required: false, description: 'Concurrent limits for animals' })
+  @IsOptional()
+  concurrentLimits?: any;
 }

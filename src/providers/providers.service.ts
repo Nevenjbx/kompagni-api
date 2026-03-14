@@ -119,7 +119,7 @@ export class ProvidersService {
           {
             services: {
               some: {
-                animalType: animalType as any,
+                animalTypes: { has: animalType as any },
               }
             }
           }
@@ -127,8 +127,7 @@ export class ProvidersService {
       } else {
         where.services = {
           some: {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            animalType: animalType as any, // Cast to AnimalType enum if needed
+            animalTypes: { has: animalType as any },
           },
         };
       }

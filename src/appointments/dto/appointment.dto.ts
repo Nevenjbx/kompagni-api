@@ -4,9 +4,10 @@ import {
   IsOptional,
   IsEnum,
   IsDateString,
+  IsBoolean,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { AppointmentStatus, OfferType } from '@prisma/client';
+import { AppointmentStatus } from '@prisma/client';
 
 export class CreateAppointmentDto {
   @ApiProperty()
@@ -19,49 +20,42 @@ export class CreateAppointmentDto {
   @IsNotEmpty()
   animalId: string;
 
-  @ApiProperty({ enum: OfferType })
-  @IsEnum(OfferType)
-  offerType: OfferType;
 
   @ApiProperty({ description: 'Lock token from slot reservation' })
   @IsString()
   @IsNotEmpty()
   lockToken: string;
 
-  // Slot info (populated from the locked slot)
+  // Slot info (from user selection)
   @ApiProperty()
   @IsDateString()
   @IsNotEmpty()
   slotStart: string;
 
   @ApiProperty()
-  @IsDateString()
   @IsNotEmpty()
-  slotEnd: string;
+  quoteResult: any; // Using any for DTO validation simplification, it maps to QuoteResult from engine
 
+  // Layer 3 fields
   @ApiProperty()
-  @IsString()
+  @IsBoolean()
   @IsNotEmpty()
-  tableId: string;
+  hasKnotsToday: boolean;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  precautions?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientFreeNote?: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
   staffId: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  durationMinutes?: number;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  formationBlock?: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  notes?: string;
 }
 
 export class UpdateAppointmentStatusDto {
@@ -87,14 +81,26 @@ export class GetSlotsDto {
   @IsNotEmpty()
   animalId: string;
 
-  @ApiProperty({ enum: OfferType })
-  @IsEnum(OfferType)
-  offerType: OfferType;
 }
 
 export class LockSlotDto {
-  @ApiProperty({ description: 'Slot key: tableId_date_startTime' })
+  @ApiProperty({ description: 'Slot start time' })
+  @IsDateString()
+  @IsNotEmpty()
+  startTime: string;
+
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  slotKey: string;
+  staffId: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  serviceId: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  salonId: string;
 }

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateStaffDto, UpdateStaffDto, SetStaffDurationDto } from './dto/staff.dto';
+import { CreateStaffDto, UpdateStaffDto } from './dto/staff.dto';
 
 @Injectable()
 export class StaffService {
@@ -23,7 +23,6 @@ export class StaffService {
     const salonId = await this.getSalonId(userId);
     return this.prisma.staffMember.findMany({
       where: { salonId },
-      include: { serviceDurations: true },
       orderBy: { name: 'asc' },
     });
   }
@@ -32,7 +31,6 @@ export class StaffService {
     const salonId = await this.getSalonId(userId);
     const staff = await this.prisma.staffMember.findUnique({
       where: { id: staffId },
-      include: { serviceDurations: true },
     });
     if (!staff || staff.salonId !== salonId) throw new NotFoundException('Staff non trouvé');
     return staff;
@@ -49,22 +47,5 @@ export class StaffService {
   async remove(userId: string, staffId: string) {
     await this.findOne(userId, staffId);
     return this.prisma.staffMember.delete({ where: { id: staffId } });
-  }
-
-  async setDuration(userId: string, staffId: string, dto: SetStaffDurationDto) {
-    await this.findOne(userId, staffId);
-    return this.prisma.staffServiceDuration.upsert({
-      where: { staffId_serviceId: { staffId, serviceId: dto.serviceId } },
-      update: { durationMinutes: dto.durationMinutes },
-      create: { staffId, serviceId: dto.serviceId, durationMinutes: dto.durationMinutes },
-    });
-  }
-
-  async getDurations(userId: string, staffId: string) {
-    await this.findOne(userId, staffId);
-    return this.prisma.staffServiceDuration.findMany({
-      where: { staffId },
-      include: { service: true },
-    });
   }
 }

@@ -1,0 +1,49 @@
+﻿prisma/seed.ts(1,30): error TS2305: Module '"@prisma/client"' has no exported member 'AnimalType'.
+prisma/seed.ts(1,42): error TS2305: Module '"@prisma/client"' has no exported member 'OfferType'.
+prisma/seed.ts(1,64): error TS2305: Module '"@prisma/client"' has no exported member 'TableCategory'.
+prisma/seed.ts(1,95): error TS2305: Module '"@prisma/client"' has no exported member 'PetSize'.
+prisma/seed.ts(1,104): error TS2305: Module '"@prisma/client"' has no exported member 'PetCharacter'.
+prisma/seed.ts(55,16): error TS2339: Property 'staffServiceDuration' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(57,16): error TS2339: Property 'groomingTable' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(89,15): error TS2353: Object literal may only specify known properties, and 'formationDiscount' does not exist in type '(Without<SalonConfigCreateWithoutSalonInput, SalonConfigUncheckedCreateWithoutSalonInput> & SalonConfigUncheckedCreateWithoutSalonInput) | (Without<...> & SalonConfigCreateWithoutSalonInput)'.
+prisma/seed.ts(103,20): error TS2339: Property 'groomingTable' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(115,27): error TS2339: Property 'PRO' does not exist on type '{ PROFESSIONAL: "PROFESSIONAL"; APPRENTICE: "APPRENTICE"; }'.
+prisma/seed.ts(130,27): error TS2551: Property 'APPRENTI' does not exist on type '{ PROFESSIONAL: "PROFESSIONAL"; APPRENTICE: "APPRENTICE"; }'. Did you mean 'APPRENTICE'?
+prisma/seed.ts(145,11): error TS2561: Object literal may only specify known properties, but 'animalType' does not exist in type 'Without<ServiceCreateInput, ServiceUncheckedCreateInput> & ServiceUncheckedCreateInput'. Did you mean to write 'animalTypes'?
+prisma/seed.ts(195,20): error TS2339: Property 'groomingTable' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(202,27): error TS2339: Property 'PRO' does not exist on type '{ PROFESSIONAL: "PROFESSIONAL"; APPRENTICE: "APPRENTICE"; }'.
+prisma/seed.ts(217,11): error TS2561: Object literal may only specify known properties, but 'animalType' does not exist in type 'Without<ServiceCreateInput, ServiceUncheckedCreateInput> & ServiceUncheckedCreateInput'. Did you mean to write 'animalTypes'?
+prisma/seed.ts(238,26): error TS2353: Object literal may only specify known properties, and 'type' does not exist in type 'PetUncheckedCreateWithoutOwnerInput'.
+prisma/seed.ts(239,27): error TS2353: Object literal may only specify known properties, and 'type' does not exist in type 'PetUncheckedCreateWithoutOwnerInput'.
+src/appointments/appointments.service.spec.ts(6,18): error TS2305: Module '"@prisma/client"' has no exported member 'OfferType'.
+src/appointments/appointments.service.spec.ts(82,56): error TS2345: Argument of type '{ serviceId: string; animalId: string; offerType: any; lockToken: string; slotStart: string; slotEnd: string; tableId: string; staffId: string; }' is not assignable to parameter of type 'CreateAppointmentDto'.
+  Type '{ serviceId: string; animalId: string; offerType: any; lockToken: string; slotStart: string; slotEnd: string; tableId: string; staffId: string; }' is missing the following properties from type 'CreateAppointmentDto': quoteResult, hasKnotsToday
+src/appointments/appointments.service.spec.ts(89,56): error TS2345: Argument of type '{ serviceId: string; animalId: string; offerType: any; lockToken: string; slotStart: string; slotEnd: string; tableId: string; staffId: string; }' is not assignable to parameter of type 'CreateAppointmentDto'.
+  Type '{ serviceId: string; animalId: string; offerType: any; lockToken: string; slotStart: string; slotEnd: string; tableId: string; staffId: string; }' is missing the following properties from type 'CreateAppointmentDto': quoteResult, hasKnotsToday
+src/appointments/appointments.service.spec.ts(108,64): error TS2345: Argument of type '{ serviceId: string; animalId: string; offerType: any; lockToken: string; slotStart: string; slotEnd: string; tableId: string; staffId: string; }' is not assignable to parameter of type 'CreateAppointmentDto'.
+  Type '{ serviceId: string; animalId: string; offerType: any; lockToken: string; slotStart: string; slotEnd: string; tableId: string; staffId: string; }' is missing the following properties from type 'CreateAppointmentDto': quoteResult, hasKnotsToday
+src/appointments/appointments.service.ts(48,7): error TS2322: Type 'null' is not assignable to type 'string'.
+src/appointments/dto/appointment.dto.ts(10,29): error TS2305: Module '"@prisma/client"' has no exported member 'OfferType'.
+src/appointments/manual-blocks.service.ts(39,9): error TS2353: Object literal may only specify known properties, and 'targetTableId' does not exist in type 'Without<ManualBlockCreateInput, ManualBlockUncheckedCreateInput> & ManualBlockUncheckedCreateInput'.
+src/appointments/slot-engine.service.ts(7,10): error TS2305: Module '"@prisma/client"' has no exported member 'OfferType'.
+src/appointments/slot-engine.service.ts(65,38): error TS2339: Property 'formationBlocks' does not exist on type '{ salonId: string; id: string; createdAt: Date; updatedAt: Date; validationMode: ValidationMode; pendingExpiryHours: number; slotGranularityMin: number; planningHorizonDays: number; concurrentLimits: JsonValue; cancelDeadlineHours: number; }'.
+src/appointments/slot-engine.service.ts(146,19): error TS2339: Property 'groomingTable' does not exist on type 'PrismaService'.
+src/appointments/slot-engine.service.ts(148,27): error TS2322: Type '"PRO"' is not assignable to type 'StaffRole | EnumStaffRoleFilter<"StaffMember"> | undefined'.
+src/appointments/slot-engine.service.ts(149,20): error TS2353: Object literal may only specify known properties, and 'serviceDurations' does not exist in type 'StaffMemberInclude<DefaultArgs>'.
+src/appointments/slot-engine.service.ts(267,19): error TS2339: Property 'groomingTable' does not exist on type 'PrismaService'.
+src/kairos/availability-checker.ts(2,21): error TS2724: '"../engine/types"' has no exported member named 'AppointmentData'. Did you mean 'AppointmentNoteData'?
+src/price-adjustments/price-adjustments.controller.ts(3,31): error TS2307: Cannot find module '../supabase/supabase.guard' or its corresponding type declarations.
+src/providers/providers.service.ts(122,17): error TS2561: Object literal may only specify known properties, but 'animalType' does not exist in type 'ServiceWhereInput'. Did you mean to write 'animalTypes'?
+src/providers/providers.service.ts(131,13): error TS2561: Object literal may only specify known properties, but 'animalType' does not exist in type 'ServiceWhereInput'. Did you mean to write 'animalTypes'?
+src/rules/rules.controller.ts(3,31): error TS2307: Cannot find module '../supabase/supabase.guard' or its corresponding type declarations.
+src/salon-config/salon-config.service.ts(40,38): error TS2367: This comparison appears to be unintentional because the types 'StaffRole' and '"PRO"' have no overlap.
+src/salon-config/salon-config.service.ts(41,43): error TS2367: This comparison appears to be unintentional because the types 'StaffRole' and '"APPRENTI"' have no overlap.
+src/services/dto/service.dto.ts(12,10): error TS2305: Module '"@prisma/client"' has no exported member 'AnimalType'.
+src/services/dto/service.dto.ts(12,22): error TS2305: Module '"@prisma/client"' has no exported member 'OfferType'.
+src/services/services.service.ts(47,37): error TS2561: Object literal may only specify known properties, but 'animalType' does not exist in type 'ServiceWhereInput'. Did you mean to write 'animalTypes'?
+src/services/services.service.ts(47,56): error TS2339: Property 'type' does not exist on type '{ id: string; createdAt: Date; updatedAt: Date; name: string; species: string; breedId: string; birthDate: Date; sex: string; isNeutered: boolean; weightKg: number; category: AnimalCategory; ... 4 more ...; ownerId: string; }'.
+src/services/services.service.ts(52,50): error TS2367: This comparison appears to be unintentional because the types 'StaffRole' and '"PRO"' have no overlap.
+src/services/services.service.ts(52,89): error TS2367: This comparison appears to be unintentional because the types 'StaffRole' and '"APPRENTI"' have no overlap.
+src/services/services.service.ts(57,31): error TS2339: Property 'priceTiers' does not exist on type '{ id: string; createdAt: Date; updatedAt: Date; description: string | null; name: string; animalTypes: string[]; providerId: string; }'.
+src/services/services.service.ts(62,32): error TS2339: Property 'availableModes' does not exist on type '{ id: string; createdAt: Date; updatedAt: Date; description: string | null; name: string; animalTypes: string[]; providerId: string; }'.
+src/staff/staff.service.ts(3,42): error TS2305: Module '"./dto/staff.dto"' has no exported member 'SetStaffDurationDto'.

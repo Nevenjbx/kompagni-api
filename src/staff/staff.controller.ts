@@ -13,7 +13,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 import { StaffService } from './staff.service';
-import { CreateStaffDto, UpdateStaffDto, SetStaffDurationDto } from './dto/staff.dto';
+import { CreateStaffDto, UpdateStaffDto } from './dto/staff.dto';
 
 @ApiTags('Staff')
 @ApiBearerAuth()
@@ -45,15 +45,5 @@ export class StaffController {
   @Delete(':id')
   remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.staffService.remove(req.user.id, id);
-  }
-
-  @Post(':id/durations')
-  setDuration(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: SetStaffDurationDto) {
-    return this.staffService.setDuration(req.user.id, id, dto);
-  }
-
-  @Get(':id/durations')
-  getDurations(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.staffService.getDurations(req.user.id, id);
   }
 }

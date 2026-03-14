@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsArray,
   IsBoolean,
+  IsNumber,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { StaffRole } from '@prisma/client';
@@ -26,6 +27,17 @@ export class CreateStaffDto {
   @ApiProperty({ required: false, description: 'JSON array of leaves' })
   @IsOptional()
   leaves?: any;
+
+  @ApiProperty({ required: false, default: 1.0 })
+  @IsNumber()
+  @IsOptional()
+  speedIndex?: number;
+
+  @ApiProperty({ required: false, isArray: true, type: String })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allowedServiceIds?: string[];
 }
 
 export class UpdateStaffDto {
@@ -46,15 +58,15 @@ export class UpdateStaffDto {
   @ApiProperty({ required: false })
   @IsOptional()
   leaves?: any;
-}
 
-export class SetStaffDurationDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  serviceId: string;
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  speedIndex?: number;
 
-  @ApiProperty()
-  @IsNotEmpty()
-  durationMinutes: number;
+  @ApiProperty({ required: false, isArray: true, type: String })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allowedServiceIds?: string[];
 }

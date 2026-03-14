@@ -92,4 +92,21 @@ export class UsersController {
   async getFavorites(@Req() req: AuthenticatedRequest) {
     return this.usersService.getFavorites(req.user.id);
   }
+
+  // --- Blocking ---
+
+  @Post(':id/block')
+  @ApiOperation({ summary: 'Block a client from booking' })
+  async blockClient(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.usersService.blockClient(id, body.reason);
+  }
+
+  @Post(':id/unblock')
+  @ApiOperation({ summary: 'Unblock a client' })
+  async unblockClient(@Param('id') id: string) {
+    return this.usersService.unblockClient(id);
+  }
 }

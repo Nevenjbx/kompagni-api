@@ -2,7 +2,7 @@ import { Controller, Get, Post, Delete, Body, Param, Req, UseGuards } from '@nes
 import { PetsService } from './pets.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
-import { PetSize, PetCharacter, AnimalType } from '@prisma/client';
+import { AnimalCategory, CoatType, GroomingBehavior, SkinCondition } from '@prisma/client';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 
 @ApiTags('Pets')
@@ -16,17 +16,28 @@ export class PetsController {
     @ApiOperation({ summary: 'Add a new pet' })
     async addPet(
         @Req() req: AuthenticatedRequest,
-        @Body() body: { name: string; type: string; breed: string; size: string; character: string },
+        @Body() body: any, // Basic typing, can be improved with a DTO
     ) {
-        // Convert lowercase enum values from frontend to uppercase for Prisma
+        // We accept the new 3-layer model fields
         const normalizedData = {
             name: body.name,
-            type: body.type.toUpperCase() as AnimalType,
-            breed: body.breed,
-            size: body.size.toUpperCase() as PetSize,
-            character: body.character.toUpperCase() as PetCharacter,
+            species: body.species,
+            breedId: body.breedId,
+            birthDate: body.birthDate ? new Date(body.birthDate) : new Date(),
+            isNeutered: body.isNeutered ?? false,
+            sex: body.sex || 'UNKNOWN',
+            weightKg: body.weightKg,
+            category: body.category as AnimalCategory,
+            coatType: body.coatType as CoatType,
+            groomingBehavior: body.groomingBehavior as GroomingBehavior,
+            skinCondition: body.skinCondition as SkinCondition,
         };
-        return this.petsService.createPet(req.user.id, normalizedData);
+        try {
+            return await this.petsService.createPet(req.user.id, normalizedData);
+        } catch (error) {
+            console.error('Error creating pet in Prisma:', error);
+            throw error;
+        }
     }
 
     @Get()
@@ -47,21 +58,22 @@ export class PetsController {
         return this.petsService.deletePet(req.user.id, id);
     }
 
-    @Get(':id/note')
-    @ApiOperation({ summary: 'Get provider note for a pet' })
-    async getPetNote(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-        const note = await this.petsService.getProviderPetNote(id, req.user.id);
-        return { note };
-    }
+    // --- Animal Refinements ---
 
-    @Post(':id/note')
-    @ApiOperation({ summary: 'Update provider note for a pet' })
-    async updatePetNote(
+    @Post(':id/refinements')
+    @ApiOperation({ summary: 'Add a refinement for a pet' })
+    async addRefinement(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
-        @Body() body: { note: string },
+        @Body() body: any,
     ) {
-        await this.petsService.upsertProviderPetNote(id, req.user.id, body.note);
-        return { success: true };
+        const salonId = body.salonId || req.user.id; // Just fallback for testing
+        return this.petsService.addRefinement(id, salonId, body);
+    }
+
+    @Get(':id/refinements')
+    @ApiOperation({ summary: 'Get refinement history for a pet' })
+    async getRefinements(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+        return this.petsService.getRefinements(id);
     }
 }

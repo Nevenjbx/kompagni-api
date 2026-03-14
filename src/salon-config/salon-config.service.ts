@@ -37,8 +37,8 @@ export class SalonConfigService {
   /** Vérifie si le mode Formation est disponible (≥1 PRO + ≥1 APPRENTI) */
   async isFormationAvailable(salonId: string): Promise<boolean> {
     const staff = await this.prisma.staffMember.findMany({ where: { salonId } });
-    const hasPro = staff.some((s) => s.role === 'PRO');
-    const hasApprenti = staff.some((s) => s.role === 'APPRENTI');
+    const hasPro = staff.some((s) => s.role === 'PROFESSIONAL');
+    const hasApprenti = staff.some((s) => s.role === 'APPRENTICE');
     return hasPro && hasApprenti;
   }
 }
