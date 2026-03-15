@@ -1,0 +1,31 @@
+﻿npx : warn The configuration property `package.json#prisma` is deprecated and will be removed 
+in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+Au caractère Ligne:1 : 1
++ npx prisma db push --accept-data-loss 2>&1 | Out-File -Encoding utf8  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warn The config...ma.config.ts`).:String) [], Rem 
+   oteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+For more information, see: https://pris.ly/prisma-config
+
+Loaded Prisma config from prisma.config.ts.
+
+warn The Prisma config file in prisma.config.ts overrides the deprecated `package.json#prisma` 
+property in package.json.
+  For more information, see: https://pris.ly/prisma-config
+
+Prisma config detected, skipping environment variable loading.
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": PostgreSQL database "postgres", schema "public" at "db.kgdaaumpgtcdhkwomzdk.supabase.co:5432"
+
+Error: 
+ÔÜá´©Å We found changes that cannot be executed:
+
+  ÔÇó Added the required column `clientId` to the `slot_locks` table without a default value. 
+There are 4 rows in this table, it is not possible to execute this step.
+
+You may use the --force-reset flag to drop the database before push like prisma db push 
+--force-reset
+All data will be lost.
+      

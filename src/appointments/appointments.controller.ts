@@ -40,8 +40,14 @@ export class AppointmentsController {
   }
 
   @Post('slots/lock')
-  lockSlot(@Body() dto: LockSlotDto) {
-    return this.appointmentsService.lockSlot(dto);
+  lockSlot(@Req() req: AuthenticatedRequest, @Body() dto: LockSlotDto) {
+    return this.appointmentsService.lockSlot(req.user.id, dto);
+  }
+
+  @Post('slots/unlock')
+  unlockSlot(@Body() dto: { lockToken: string }) {
+    if (!dto.lockToken) return { success: false };
+    return this.appointmentsService.unlockSlot(dto.lockToken);
   }
 
   // ─── RENDEZ-VOUS ────────────────────────────────

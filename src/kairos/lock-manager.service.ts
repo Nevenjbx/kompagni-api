@@ -4,6 +4,7 @@ import { LockExpiredException, QuoteResult } from '../engine/types';
 import { v4 as uuidv4 } from 'uuid';
 
 interface AcquireLockInput {
+  clientId: string;
   salonId: string;
   staffId: string;
   serviceId: string;
@@ -49,6 +50,11 @@ export class LockManagerService {
       where: { expiresAt: { lt: now } }
     });
 
+    // Lock swapping: release any existing active lock for this client
+    await this.prisma.slotLock.deleteMany({
+      where: { clientId: input.clientId, expiresAt: { gt: now } }
+    });
+
     try {
       // Attempt to create the lock. Will throw P2002 if slotKey is already locked uniquely.
       // Wait, slotKey is not currently marked @unique in schema.prisma, just @index.
@@ -63,7 +69,7 @@ export class LockManagerService {
         }
 
         const newLock = await tx.slotLock.create({
-          data: { slotKey, expiresAt }
+          data: { slotKey, expiresAt, clientId: input.clientId }
         });
 
         return { lockToken: newLock.id, expiresAt: newLock.expiresAt };
@@ -134,6 +140,22 @@ export class LockManagerService {
        return newAppt;
     });
 
+
     return appointment;
+  }
+
+  /**
+   * Explicitly releases a lock, usually called when booking fails 
+   * after acquiring the lock to avoid orphaned locks.
+   */
+  async releaseLock(lockToken: string) {
+    if (!lockToken) return;
+    try {
+      await this.prisma.slotLock.deleteMany({
+        where: { id: lockToken }
+      });
+    } catch (e) {
+      // Ignore errors if lock is already deleted
+    }
   }
 }

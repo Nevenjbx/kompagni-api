@@ -360,12 +360,14 @@ model ManualBlock {
 
 model SlotLock {
   id        String   @id @default(uuid())
+  clientId  String   // To allow lock swapping for the same user
   slotKey   String // "salonId_staffId_ISO-startTime"
   expiresAt DateTime
 
   createdAt DateTime @default(now())
 
   @@index([slotKey])
+  @@index([clientId])
   @@index([expiresAt])
   @@map("slot_locks")
 }

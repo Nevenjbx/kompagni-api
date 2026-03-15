@@ -52,13 +52,19 @@ export class AppointmentsService {
     });
   }
 
-  async lockSlot(dto: LockSlotDto) {
+  async lockSlot(clientId: string, dto: LockSlotDto) {
     return this.lockManager.acquireLock({
+      clientId,
       salonId: dto.salonId,
       staffId: dto.staffId,
       serviceId: dto.serviceId,
       startTime: new Date(dto.startTime),
     });
+  }
+
+  async unlockSlot(lockToken: string) {
+    await this.lockManager.releaseLock(lockToken);
+    return { success: true };
   }
 
   // ─── CREATION RDV ───────────────────────────────

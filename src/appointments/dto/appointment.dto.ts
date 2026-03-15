@@ -104,3 +104,11 @@ export class LockSlotDto {
   @IsNotEmpty()
   salonId: string;
 }
+
+export class UnlockSlotDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  lockToken: string;
+}
+
