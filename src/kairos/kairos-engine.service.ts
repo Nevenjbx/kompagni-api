@@ -33,10 +33,9 @@ export class KairosEngineService {
     
     // We don't have the horizon value yet, we will fetch config first or default to 14 days
     const config = await this.prisma.salonConfig.findUnique({ where: { salonId } });
-    if (!config) throw new Error('Salon config not found');
     
-    const horizonDays = config.planningHorizonDays || 14;
-    const granularity = config.slotGranularityMin || 15;
+    const horizonDays = config?.planningHorizonDays ?? 14;
+    const granularity = config?.slotGranularityMin ?? 30;
     endOfHorizon.setDate(endOfHorizon.getDate() + horizonDays);
 
     // GATE 0: Check blocked client
@@ -103,9 +102,9 @@ export class KairosEngineService {
       breakEndTime: wh.breakEndTime
     }));
 
-    const concurrentLimits = typeof config.concurrentLimits === 'string' 
-      ? JSON.parse(config.concurrentLimits) 
-      : config.concurrentLimits;
+    const concurrentLimits = config?.concurrentLimits 
+      ? (typeof config.concurrentLimits === 'string' ? JSON.parse(config.concurrentLimits) : config.concurrentLimits)
+      : { "SMALL": 2, "LARGE": 1, "GIANT": 1, "CAT": 1, "NAC": 1 };
 
     // ---------------------------------------------------------
     // 2-LEVEL COMPUTATION (Outside staff loop)
