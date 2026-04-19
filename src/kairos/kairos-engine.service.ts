@@ -148,6 +148,11 @@ export class KairosEngineService {
 
       // Now iterate through slots
       while (cursor < dayEnd) {
+        if (cursor < new Date()) {
+          cursor = new Date(cursor.getTime() + granularity * 60000);
+          continue;
+        }
+        
         // Evaluate Staff Members
         for (const staff of staffMembers) {
           
@@ -196,7 +201,7 @@ export class KairosEngineService {
 
       if (slotsToday.length > 0) {
         response.push({
-          date: currentDay.toISOString().split('T')[0],
+          date: `${currentDay.getFullYear()}-${String(currentDay.getMonth() + 1).padStart(2, '0')}-${String(currentDay.getDate()).padStart(2, '0')}`,
           slots: slotsToday
         });
       }
