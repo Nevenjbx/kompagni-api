@@ -1,5 +1,6 @@
-import { Controller, Get, UseGuards, Post, Req, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, UseGuards, Post, Req, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
+import { Public } from '../common/decorators/public.decorator';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -20,6 +21,15 @@ export class UsersController {
   @ApiOperation({ summary: 'List all users (Admin only)' })
   async getAll() {
     return this.usersService.findAll();
+  }
+
+  @Public()
+  @Get('check-email')
+  @ApiOperation({ summary: 'Check if an email exists' })
+  async checkEmail(@Query('email') email: string) {
+    if (!email) return { exists: false };
+    const exists = await this.usersService.checkEmail(email);
+    return { exists };
   }
 
   @Get('me')
