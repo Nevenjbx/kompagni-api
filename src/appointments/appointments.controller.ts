@@ -85,8 +85,8 @@ export class AppointmentsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.appointmentsService.findOne(id);
+  findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.appointmentsService.findOneSecured(req.user.id, req.user.role, id);
   }
 
   @Put(':id/status')

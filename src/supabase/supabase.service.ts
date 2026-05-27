@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 import * as jwt from 'jsonwebtoken';
+import * as ws from 'ws';
 
 @Injectable()
 export class SupabaseService {
@@ -15,10 +16,18 @@ export class SupabaseService {
     if (!url || !key) {
       this.logger.error('Missing Supabase credentials in .env');
       throw new Error('Supabase is not configured properly');
+      return; // make typescript happy if needed
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    this.supabase = createClient(url, key);
+    this.supabase = createClient(url, key, {
+      auth: {
+        persistSession: false,
+      },
+      realtime: {
+        transport: ws as any,
+      },
+    });
   }
 
   getClient(): SupabaseClient {

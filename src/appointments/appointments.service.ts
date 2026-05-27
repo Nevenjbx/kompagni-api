@@ -159,6 +159,27 @@ export class AppointmentsService {
     return apt;
   }
 
+  async findOneSecured(userId: string, userRole: string, id: string) {
+    const apt = await this.findOne(id);
+
+    if (userRole === 'ADMIN') {
+      return apt;
+    }
+
+    if (userRole === 'CLIENT' && apt.clientId !== userId) {
+      throw new ForbiddenException('Accès non autorisé à ce rendez-vous');
+    }
+
+    if (userRole === 'PROVIDER') {
+      const profile = await this.prisma.providerProfile.findUnique({ where: { userId } });
+      if (!profile || apt.salonId !== profile.id) {
+        throw new ForbiddenException('Accès non autorisé à ce rendez-vous');
+      }
+    }
+
+    return apt;
+  }
+
   // ─── MISE À JOUR STATUT ─────────────────────────
 
   async updateStatus(userId: string, appointmentId: string, dto: UpdateAppointmentStatusDto) {

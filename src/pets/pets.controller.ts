@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Delete, Body, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Patch, Body, Param, Req, UseGuards, ForbiddenException } from '@nestjs/common';
 import { PetsService } from './pets.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 import { AnimalCategory, CoatType, GroomingBehavior, SkinCondition } from '@prisma/client';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { CreatePetDto, UpdatePetDto } from './dto/pet.dto';
 
 @ApiTags('Pets')
 @Controller('pets')
@@ -16,21 +17,20 @@ export class PetsController {
     @ApiOperation({ summary: 'Add a new pet' })
     async addPet(
         @Req() req: AuthenticatedRequest,
-        @Body() body: any, // Basic typing, can be improved with a DTO
+        @Body() dto: CreatePetDto,
     ) {
-        // We accept the new 3-layer model fields
         const normalizedData = {
-            name: body.name,
-            species: body.species,
-            breedId: body.breedId,
-            birthDate: body.birthDate ? new Date(body.birthDate) : new Date(),
-            isNeutered: body.isNeutered ?? false,
-            sex: body.sex || 'UNKNOWN',
-            weightKg: body.weightKg,
-            category: body.category as AnimalCategory,
-            coatType: body.coatType as CoatType,
-            groomingBehavior: body.groomingBehavior as GroomingBehavior,
-            skinCondition: body.skinCondition as SkinCondition,
+            name: dto.name,
+            species: dto.species,
+            breedId: dto.breedId,
+            birthDate: new Date(dto.birthDate),
+            isNeutered: dto.isNeutered ?? false,
+            sex: dto.sex,
+            weightKg: dto.weightKg,
+            category: dto.category,
+            coatType: dto.coatType,
+            groomingBehavior: dto.groomingBehavior,
+            skinCondition: dto.skinCondition,
         };
         try {
             return await this.petsService.createPet(req.user.id, normalizedData);
@@ -48,7 +48,13 @@ export class PetsController {
 
     @Get('user/:userId')
     @ApiOperation({ summary: 'Get pets of a specific user' })
-    async getUserPets(@Param('userId') userId: string) {
+    async getUserPets(
+        @Req() req: AuthenticatedRequest,
+        @Param('userId') userId: string,
+    ) {
+        if (req.user.role === 'CLIENT' && req.user.id !== userId) {
+            throw new ForbiddenException('Non autorisé à lister les animaux de cet utilisateur');
+        }
         return this.petsService.getMyPets(userId);
     }
 
@@ -56,6 +62,34 @@ export class PetsController {
     @ApiOperation({ summary: 'Delete a pet' })
     async deletePet(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
         return this.petsService.deletePet(req.user.id, id);
+    }
+
+    @Patch(':id')
+    @ApiOperation({ summary: 'Update an existing pet' })
+    async updatePet(
+        @Req() req: AuthenticatedRequest,
+        @Param('id') id: string,
+        @Body() dto: UpdatePetDto,
+    ) {
+        const normalizedData: any = {};
+        if (dto.name !== undefined) normalizedData.name = dto.name;
+        if (dto.species !== undefined) normalizedData.species = dto.species;
+        if (dto.breedId !== undefined) normalizedData.breedId = dto.breedId;
+        if (dto.birthDate !== undefined) normalizedData.birthDate = new Date(dto.birthDate);
+        if (dto.isNeutered !== undefined) normalizedData.isNeutered = dto.isNeutered;
+        if (dto.sex !== undefined) normalizedData.sex = dto.sex;
+        if (dto.weightKg !== undefined) normalizedData.weightKg = dto.weightKg;
+        if (dto.category !== undefined) normalizedData.category = dto.category;
+        if (dto.coatType !== undefined) normalizedData.coatType = dto.coatType;
+        if (dto.groomingBehavior !== undefined) normalizedData.groomingBehavior = dto.groomingBehavior;
+        if (dto.skinCondition !== undefined) normalizedData.skinCondition = dto.skinCondition;
+
+        try {
+            return await this.petsService.updatePet(req.user.id, id, normalizedData);
+        } catch (error) {
+            console.error('Error updating pet in Prisma:', error);
+            throw error;
+        }
     }
 
     // --- Animal Refinements ---

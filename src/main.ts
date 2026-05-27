@@ -12,8 +12,11 @@ async function bootstrap() {
 
   // Security middleware
   app.use(helmet());
+  const isDev = process.env.NODE_ENV !== 'production';
   app.enableCors({
-    origin: true, // Allow any origin for development
+    origin: isDev
+      ? ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173']
+      : process.env.FRONTEND_URL || false,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });

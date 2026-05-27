@@ -34,12 +34,45 @@ export class PetsService {
     }
 
     async deletePet(ownerId: string, petId: string): Promise<void> {
-        // Ensure the pet belongs to the user
-        await this.prisma.pet.deleteMany({
+        // Ensure the pet belongs to the user and exists
+        const pet = await this.prisma.pet.findFirst({
             where: {
                 id: petId,
                 ownerId,
             },
+        });
+        if (!pet) {
+            throw new NotFoundException('Pet not found or not owned by user');
+        }
+
+        await this.prisma.pet.delete({
+            where: {
+                id: petId,
+            },
+        });
+    }
+
+    async updatePet(ownerId: string, petId: string, data: {
+        name?: string;
+        species?: string;
+        breedId?: string;
+        birthDate?: Date;
+        isNeutered?: boolean;
+        sex?: any;
+        weightKg?: number;
+        category?: AnimalCategory;
+        coatType?: CoatType;
+        groomingBehavior?: GroomingBehavior;
+        skinCondition?: SkinCondition;
+    }): Promise<Pet> {
+        const pet = await this.prisma.pet.findFirst({
+            where: { id: petId, ownerId },
+        });
+        if (!pet) throw new NotFoundException('Pet not found or not owned by user');
+
+        return this.prisma.pet.update({
+            where: { id: petId },
+            data,
         });
     }
 

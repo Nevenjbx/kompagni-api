@@ -38,9 +38,9 @@ export function isAvailable(
 
   if (hasConflict) return false;
 
-  // 2. Check absences
+  // 2. Check absences (Overlapping check)
   const hasAbsence = absences.some(abs => 
-    start >= abs.startDate && start < abs.endDate
+    start < abs.endDate && end > abs.startDate
   );
   
   if (hasAbsence) return false;
@@ -52,7 +52,7 @@ export function isAvailable(
     const hasLeaf = staffLeaves.some(leaf => {
        const leafStart = new Date(leaf.startDate);
        const leafEnd = new Date(leaf.endDate);
-       return start >= leafStart && start < leafEnd;
+       return start < leafEnd && end > leafStart;
     });
     if (hasLeaf) return false;
   }
