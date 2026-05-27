@@ -16,7 +16,6 @@ export class SupabaseService {
     if (!url || !key) {
       this.logger.error('Missing Supabase credentials in .env');
       throw new Error('Supabase is not configured properly');
-      return; // make typescript happy if needed
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -41,7 +40,7 @@ export class SupabaseService {
 
     if (error) {
       this.logger.warn(`Token validation failed: ${error.message}`);
-      console.log('SupabaseService: Full error:', error);
+      this.logger.debug(`SupabaseService: Full error: ${JSON.stringify(error)}`);
       return null;
     }
 

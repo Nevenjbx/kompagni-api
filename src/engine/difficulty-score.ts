@@ -1,4 +1,5 @@
 import { AnimalData, AppointmentNoteData } from './types';
+import { getDaysPassed } from './utils';
 
 /**
  * Implements the scoring table from TDD §3.3d.
@@ -75,8 +76,4 @@ function calculateAgeInMonths(birthDate: Date): number {
   return months - birthDate.getMonth() + now.getMonth();
 }
 
-function getDaysPassed(date: Date): number {
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - date.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-}
+

@@ -5,9 +5,50 @@ import {
   IsEnum,
   IsDateString,
   IsBoolean,
+  ValidateNested,
+  IsNumber,
+  IsArray,
+  IsIn,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { AppointmentStatus } from '@prisma/client';
+import { Type } from 'class-transformer';
+
+export class QuoteResultDto {
+  @ApiProperty()
+  @IsNumber()
+  theoreticalDurationMinutes: number;
+
+  @ApiProperty()
+  @IsNumber()
+  actualDurationMinutes: number;
+
+  @ApiProperty()
+  @IsNumber()
+  clientDurationMax: number;
+
+  @ApiProperty()
+  @IsNumber()
+  tableDurationMinutes: number;
+
+  @ApiProperty()
+  @IsNumber()
+  estimatedPrice: number;
+
+  @ApiProperty({ enum: ['exact', 'estimate'] })
+  @IsEnum(['exact', 'estimate'])
+  priceDisplayMode: 'exact' | 'estimate';
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  priceDisplayDisclaimer?: string | null;
+
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  appliedModifiers: string[];
+}
 
 export class CreateAppointmentDto {
   @ApiProperty()
@@ -32,9 +73,11 @@ export class CreateAppointmentDto {
   @IsNotEmpty()
   slotStart: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: QuoteResultDto })
+  @ValidateNested()
+  @Type(() => QuoteResultDto)
   @IsNotEmpty()
-  quoteResult: any; // Using any for DTO validation simplification, it maps to QuoteResult from engine
+  quoteResult: QuoteResultDto;
 
   // Layer 3 fields
   @ApiProperty()
@@ -81,6 +124,10 @@ export class GetSlotsDto {
   @IsNotEmpty()
   animalId: string;
 
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  offerType?: string;
 }
 
 export class LockSlotDto {
@@ -110,5 +157,13 @@ export class UnlockSlotDto {
   @IsString()
   @IsNotEmpty()
   lockToken: string;
+}
+
+export class GetStatsDto {
+  @ApiProperty({ enum: ['today', 'week', 'month'], description: 'Période pour les statistiques' })
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['today', 'week', 'month'])
+  period: 'today' | 'week' | 'month';
 }
 

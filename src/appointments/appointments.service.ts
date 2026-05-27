@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { KairosEngineService } from '../kairos/kairos-engine.service';
@@ -15,10 +16,13 @@ import {
   LockSlotDto,
 } from './dto/appointment.dto';
 import { Prisma } from '@prisma/client';
+import { Cron } from '@nestjs/schedule';
 import dayjs from 'dayjs';
 
 @Injectable()
 export class AppointmentsService {
+  private readonly logger = new Logger(AppointmentsService.name);
+
   constructor(
     private prisma: PrismaService,
     private kairosEngine: KairosEngineService,
@@ -27,7 +31,7 @@ export class AppointmentsService {
 
   // ─── SLOTS ──────────────────────────────────────
 
-  async getAvailableSlots(salonId: string, dto: GetSlotsDto) {
+  async getAvailableSlots(clientId: string, salonId: string, dto: GetSlotsDto) {
     const pet = await this.prisma.pet.findUnique({ where: { id: dto.animalId } });
     if (!pet) throw new NotFoundException('Animal non trouvé');
 
@@ -45,7 +49,7 @@ export class AppointmentsService {
     };
 
     return this.kairosEngine.generate({
-      clientId: 'guest', // Using a placeholder since getAvailableSlots doesn't take auth
+      clientId,
       salonId,
       serviceId: dto.serviceId,
       animal,
@@ -111,7 +115,40 @@ export class AppointmentsService {
     const [items, total] = await Promise.all([
       this.prisma.appointment.findMany({
         where: { clientId },
-        include: { service: true, salon: true, pet: true, staff: true },
+        select: {
+          id: true,
+          clientId: true,
+          serviceId: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          petId: true,
+          actualDurationMinutes: true,
+          appliedModifiers: true,
+          clientDurationMax: true,
+          clientFreeNote: true,
+          confirmedAt: true,
+          estimatedPrice: true,
+          expiresAt: true,
+          hasKnotsToday: true,
+          internalNotes: true,
+          lockExpiresAt: true,
+          lockToken: true,
+          precautions: true,
+          priceDisplayDisclaimer: true,
+          priceDisplayMode: true,
+          rejectionReason: true,
+          salonId: true,
+          slotEnd: true,
+          slotStart: true,
+          staffId: true,
+          tableDurationMinutes: true,
+          theoreticalDurationMinutes: true,
+          service: true,
+          salon: true,
+          pet: true,
+          staff: true,
+        },
         orderBy: { slotStart: 'desc' },
         skip,
         take: limit,
@@ -129,7 +166,40 @@ export class AppointmentsService {
     const [items, total] = await Promise.all([
       this.prisma.appointment.findMany({
         where: { salonId: profile.id },
-        include: { service: true, client: true, pet: true, staff: true },
+        select: {
+          id: true,
+          clientId: true,
+          serviceId: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          petId: true,
+          actualDurationMinutes: true,
+          appliedModifiers: true,
+          clientDurationMax: true,
+          clientFreeNote: true,
+          confirmedAt: true,
+          estimatedPrice: true,
+          expiresAt: true,
+          hasKnotsToday: true,
+          internalNotes: true,
+          lockExpiresAt: true,
+          lockToken: true,
+          precautions: true,
+          priceDisplayDisclaimer: true,
+          priceDisplayMode: true,
+          rejectionReason: true,
+          salonId: true,
+          slotEnd: true,
+          slotStart: true,
+          staffId: true,
+          tableDurationMinutes: true,
+          theoreticalDurationMinutes: true,
+          service: true,
+          client: true,
+          pet: true,
+          staff: true,
+        },
         orderBy: { slotStart: 'asc' },
         skip,
         take: limit,
@@ -145,7 +215,40 @@ export class AppointmentsService {
 
     return this.prisma.appointment.findMany({
       where: { salonId: profile.id, status: 'PENDING' },
-      include: { service: true, client: true, pet: true, staff: true },
+      select: {
+        id: true,
+        clientId: true,
+        serviceId: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        petId: true,
+        actualDurationMinutes: true,
+        appliedModifiers: true,
+        clientDurationMax: true,
+        clientFreeNote: true,
+        confirmedAt: true,
+        estimatedPrice: true,
+        expiresAt: true,
+        hasKnotsToday: true,
+        internalNotes: true,
+        lockExpiresAt: true,
+        lockToken: true,
+        precautions: true,
+        priceDisplayDisclaimer: true,
+        priceDisplayMode: true,
+        rejectionReason: true,
+        salonId: true,
+        slotEnd: true,
+        slotStart: true,
+        staffId: true,
+        tableDurationMinutes: true,
+        theoreticalDurationMinutes: true,
+        service: true,
+        client: true,
+        pet: true,
+        staff: true,
+      },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -222,14 +325,161 @@ export class AppointmentsService {
 
   // ─── EXPIRATION AUTO ────────────────────────────
 
+  @Cron('*/10 * * * *') // S'exécute toutes les 10 minutes
   async expirePendingAppointments() {
+    this.logger.log('[Cron] Vérification des rendez-vous en attente expirés...');
     const expired = await this.prisma.appointment.updateMany({
       where: {
         status: 'PENDING',
         expiresAt: { lt: new Date() },
       },
-      data: { status: 'CANCELLED' },
+      data: {
+        status: 'CANCELLED',
+        rejectionReason: 'Expiré : Le salon n\'a pas validé la demande dans le délai de 24h.',
+      },
     });
+    if (expired.count > 0) {
+      this.logger.log(`[Cron] Expiration automatique réussie : ${expired.count} rendez-vous expirés ont été annulés.`);
+    }
     return { expiredCount: expired.count };
+  }
+
+  // ─── STATISTIQUES ──────────────────────────────
+
+  async getStats(userId: string, period: 'today' | 'week' | 'month') {
+    const profile = await this.prisma.providerProfile.findUnique({ where: { userId } });
+    if (!profile) throw new ForbiddenException('Profil prestataire requis');
+
+    const salonId = profile.id;
+    const now = dayjs();
+    let startDate: Date;
+    let endDate: Date;
+
+    switch (period) {
+      case 'today':
+        startDate = now.startOf('day').toDate();
+        endDate = now.endOf('day').toDate();
+        break;
+      case 'week':
+        startDate = now.startOf('week').toDate();
+        endDate = now.endOf('week').toDate();
+        break;
+      case 'month':
+        startDate = now.startOf('month').toDate();
+        endDate = now.endOf('month').toDate();
+        break;
+    }
+
+    const dateFilter = { salonId, slotStart: { gte: startDate, lte: endDate } };
+
+    const [
+      totalAppointments,
+      statusCounts,
+      revenueResult,
+      dailyCounts,
+      serviceCounts,
+      staffCounts,
+    ] = await Promise.all([
+      // 1. Total RDV
+      this.prisma.appointment.count({ where: dateFilter }),
+
+      // 2. Comptage par statut
+      this.prisma.appointment.groupBy({
+        by: ['status'],
+        where: dateFilter,
+        _count: { id: true },
+      }),
+
+      // 3. CA (COMPLETED + CONFIRMED)
+      this.prisma.appointment.aggregate({
+        where: {
+          ...dateFilter,
+          status: { in: ['COMPLETED', 'CONFIRMED'] },
+        },
+        _sum: { estimatedPrice: true },
+      }),
+
+      // 4. Comptage par jour (raw query pour tronquer au jour)
+      this.prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+        SELECT DATE("slotStart") as day, COUNT(*)::bigint as count
+        FROM appointments
+        WHERE "salonId" = ${salonId}
+          AND "slotStart" >= ${startDate}
+          AND "slotStart" <= ${endDate}
+        GROUP BY DATE("slotStart")
+        ORDER BY day ASC
+      `,
+
+      // 5. Comptage par service
+      this.prisma.appointment.groupBy({
+        by: ['serviceId'],
+        where: dateFilter,
+        _count: { id: true },
+      }),
+
+      // 6. Comptage par collaborateur
+      this.prisma.appointment.groupBy({
+        by: ['staffId'],
+        where: dateFilter,
+        _count: { id: true },
+      }),
+    ]);
+
+    // Résoudre les noms de services
+    const serviceIds = serviceCounts.map((s) => s.serviceId);
+    const services = serviceIds.length > 0
+      ? await this.prisma.service.findMany({
+          where: { id: { in: serviceIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const serviceMap = new Map(services.map((s) => [s.id, s.name]));
+
+    // Résoudre les noms de collaborateurs
+    const staffIds = staffCounts.map((s) => s.staffId);
+    const staffMembers = staffIds.length > 0
+      ? await this.prisma.staffMember.findMany({
+          where: { id: { in: staffIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const staffMap = new Map(staffMembers.map((s) => [s.id, s.name]));
+
+    // Extraire les comptages par statut
+    const getStatusCount = (status: string) =>
+      statusCounts.find((s) => s.status === status)?._count?.id ?? 0;
+
+    const completedAppointments = getStatusCount('COMPLETED');
+    const cancelledAppointments = getStatusCount('CANCELLED');
+    const noShowAppointments = getStatusCount('NO_SHOW');
+    const cancellationRate = totalAppointments > 0
+      ? Math.round((cancelledAppointments / totalAppointments) * 10000) / 100
+      : 0;
+
+    return {
+      period,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      totalAppointments,
+      completedAppointments,
+      cancelledAppointments,
+      noShowAppointments,
+      cancellationRate,
+      revenue: revenueResult._sum.estimatedPrice ?? 0,
+      appointmentsByDay: dailyCounts.map((d) => ({
+        date: dayjs(d.day).format('YYYY-MM-DD'),
+        count: Number(d.count),
+      })),
+      appointmentsByService: serviceCounts.map((s) => ({
+        serviceId: s.serviceId,
+        serviceName: serviceMap.get(s.serviceId) ?? 'Service inconnu',
+        count: s._count.id,
+      })),
+      appointmentsByStaff: staffCounts.map((s) => ({
+        staffId: s.staffId,
+        staffName: staffMap.get(s.staffId) ?? 'Collaborateur inconnu',
+        count: s._count.id,
+      })),
+    };
   }
 }

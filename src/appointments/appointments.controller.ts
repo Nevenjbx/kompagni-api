@@ -14,12 +14,13 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 import { AppointmentsService } from './appointments.service';
-import { ManualBlocksService } from './manual-blocks.service';
+import { ManualBlocksService, CreateManualBlockDto } from './manual-blocks.service';
 import {
   CreateAppointmentDto,
   UpdateAppointmentStatusDto,
   GetSlotsDto,
   LockSlotDto,
+  GetStatsDto,
 } from './dto/appointment.dto';
 
 @ApiTags('Appointments')
@@ -32,11 +33,25 @@ export class AppointmentsController {
     private readonly manualBlocksService: ManualBlocksService,
   ) {}
 
+  // ─── STATISTIQUES ──────────────────────────────
+
+  @Get('stats')
+  getStats(
+    @Req() req: AuthenticatedRequest,
+    @Query() dto: GetStatsDto,
+  ) {
+    return this.appointmentsService.getStats(req.user.id, dto.period);
+  }
+
   // ─── SLOTS ──────────────────────────────────────
 
   @Get('slots/:salonId')
-  getSlots(@Param('salonId') salonId: string, @Query() dto: GetSlotsDto) {
-    return this.appointmentsService.getAvailableSlots(salonId, dto);
+  getSlots(
+    @Req() req: AuthenticatedRequest,
+    @Param('salonId') salonId: string,
+    @Query() dto: GetSlotsDto,
+  ) {
+    return this.appointmentsService.getAvailableSlots(req.user.id, salonId, dto);
   }
 
   @Post('slots/lock')
@@ -101,7 +116,7 @@ export class AppointmentsController {
   // ─── BLOCAGES MANUELS ──────────────────────────
 
   @Post('blocks')
-  createBlock(@Req() req: AuthenticatedRequest, @Body() dto: any) {
+  createBlock(@Req() req: AuthenticatedRequest, @Body() dto: CreateManualBlockDto) {
     return this.manualBlocksService.create(req.user.id, dto);
   }
 

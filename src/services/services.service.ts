@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateServiceDto, UpdateServiceDto } from './dto/service.dto';
@@ -23,10 +24,10 @@ export class ServicesService {
   }
 
   async findAll(providerId?: string) {
-    if (providerId) {
-      return this.prisma.service.findMany({ where: { providerId } });
+    if (!providerId) {
+      throw new BadRequestException('Le paramètre providerId est obligatoire');
     }
-    return this.prisma.service.findMany();
+    return this.prisma.service.findMany({ where: { providerId } });
   }
 
   async findOne(id: string) {

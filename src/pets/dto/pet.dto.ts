@@ -111,3 +111,35 @@ export class UpdatePetDto {
   @IsOptional()
   skinCondition?: SkinCondition;
 }
+
+export class CreateRefinementDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  appointmentId: string;
+
+  @ApiPropertyOptional()
+  @IsNumber()
+  @IsOptional()
+  weightKg?: number;
+
+  @ApiPropertyOptional({ enum: CoatType })
+  @IsEnum(CoatType)
+  @IsOptional()
+  coatType?: CoatType;
+
+  @ApiPropertyOptional({ enum: GroomingBehavior })
+  @IsEnum(GroomingBehavior)
+  @IsOptional()
+  groomingBehavior?: GroomingBehavior;
+
+  @ApiPropertyOptional({ enum: SkinCondition })
+  @IsEnum(SkinCondition)
+  @IsOptional()
+  skinCondition?: SkinCondition;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  toiletteurNote?: string;
+}

@@ -101,6 +101,13 @@ export class LockManagerService {
 
     const slotEnd = new Date(input.slotStart.getTime() + quoteResult.actualDurationMinutes * 60000);
 
+    // Fetch config for salon to calculate expiresAt based on pendingExpiryHours
+    const config = await this.prisma.salonConfig.findUnique({
+      where: { salonId: input.salonId }
+    });
+    const pendingExpiryHours = config?.pendingExpiryHours ?? 24;
+    const expiresAtDate = new Date(now.getTime() + pendingExpiryHours * 60 * 60 * 1000);
+
     // Create the appointment using the lock
     const appointment = await this.prisma.$transaction(async (tx) => {
        const newAppt = await tx.appointment.create({
@@ -112,6 +119,9 @@ export class LockManagerService {
            staffId: input.staffId,
            slotStart: input.slotStart,
            slotEnd,
+           
+           // Expiration Date based on SalonConfig
+           expiresAt: expiresAtDate,
            
            // Snapshot from QuoteResult
            theoreticalDurationMinutes: quoteResult.theoreticalDurationMinutes,

@@ -1,16 +1,18 @@
-import { Controller, Get, Post, Delete, Patch, Body, Param, Req, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Patch, Body, Param, Req, UseGuards, ForbiddenException, Logger } from '@nestjs/common';
 import { PetsService } from './pets.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 import { AnimalCategory, CoatType, GroomingBehavior, SkinCondition } from '@prisma/client';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { CreatePetDto, UpdatePetDto } from './dto/pet.dto';
+import { CreatePetDto, UpdatePetDto, CreateRefinementDto } from './dto/pet.dto';
 
 @ApiTags('Pets')
 @Controller('pets')
 @UseGuards(AuthGuard)
 @ApiBearerAuth()
 export class PetsController {
+    private readonly logger = new Logger(PetsController.name);
+
     constructor(private petsService: PetsService) { }
 
     @Post()
@@ -35,7 +37,7 @@ export class PetsController {
         try {
             return await this.petsService.createPet(req.user.id, normalizedData);
         } catch (error) {
-            console.error('Error creating pet in Prisma:', error);
+            this.logger.error('Error creating pet in Prisma:', error);
             throw error;
         }
     }
@@ -87,7 +89,7 @@ export class PetsController {
         try {
             return await this.petsService.updatePet(req.user.id, id, normalizedData);
         } catch (error) {
-            console.error('Error updating pet in Prisma:', error);
+            this.logger.error('Error updating pet in Prisma:', error);
             throw error;
         }
     }
@@ -99,15 +101,14 @@ export class PetsController {
     async addRefinement(
         @Req() req: AuthenticatedRequest,
         @Param('id') id: string,
-        @Body() body: any,
+        @Body() body: CreateRefinementDto,
     ) {
-        const salonId = body.salonId || req.user.id; // Just fallback for testing
-        return this.petsService.addRefinement(id, salonId, body);
+        return this.petsService.addRefinement(id, req.user.id, body);
     }
 
     @Get(':id/refinements')
     @ApiOperation({ summary: 'Get refinement history for a pet' })
     async getRefinements(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-        return this.petsService.getRefinements(id);
+        return this.petsService.getRefinements(id, req.user.id, req.user.role);
     }
 }
