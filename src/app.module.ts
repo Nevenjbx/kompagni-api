@@ -21,6 +21,7 @@ import { SalonConfigModule } from './salon-config/salon-config.module';
 import { RulesModule } from './rules/rules.module';
 import { PriceAdjustmentsModule } from './price-adjustments/price-adjustments.module';
 import { KairosModule } from './kairos/kairos.module';
+import { DirectoryModule } from './directory/directory.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { KairosModule } from './kairos/kairos.module';
     RulesModule,
     PriceAdjustmentsModule,
     KairosModule,
+    DirectoryModule,
   ],
   controllers: [AppController],
   providers: [
