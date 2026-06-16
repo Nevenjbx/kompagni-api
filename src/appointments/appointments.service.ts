@@ -14,10 +14,13 @@ import {
   UpdateAppointmentStatusDto,
   GetSlotsDto,
   LockSlotDto,
+  CreateManualAppointmentDto,
 } from './dto/appointment.dto';
 import { Prisma } from '@prisma/client';
 import { Cron } from '@nestjs/schedule';
 import dayjs from 'dayjs';
+import { randomUUID } from 'crypto';
+import { findBaseRule, computeTheoreticalDuration, buildQuote } from '../engine/duration-engine';
 
 @Injectable()
 export class AppointmentsService {
@@ -122,6 +125,135 @@ export class AppointmentsService {
     }
   }
 
+  async createManual(userId: string, salonId: string, dto: CreateManualAppointmentDto) {
+    const profile = await this.prisma.providerProfile.findUnique({ where: { userId } });
+    if (!profile || profile.id !== salonId) {
+      throw new ForbiddenException('Non autorisé à ajouter un rendez-vous dans ce salon');
+    }
+
+    let resolvedClientId = dto.clientId;
+    if (!resolvedClientId) {
+      const uniqueEmail = dto.clientEmail || `manual_${randomUUID()}@kompagni.manual`;
+      const existingUser = await this.prisma.user.findUnique({ where: { email: uniqueEmail } });
+      if (existingUser) {
+        resolvedClientId = existingUser.id;
+      } else {
+        const newUser = await this.prisma.user.create({
+          data: {
+            email: uniqueEmail,
+            firstName: dto.clientFirstName || 'Client',
+            lastName: dto.clientLastName || 'Manuel',
+            phoneNumber: dto.clientPhoneNumber,
+            role: 'CLIENT',
+          }
+        });
+        resolvedClientId = newUser.id;
+      }
+    }
+
+    let resolvedPetId = dto.petId;
+    if (!resolvedPetId) {
+      const newPet = await this.prisma.pet.create({
+        data: {
+          ownerId: resolvedClientId,
+          name: dto.petName || 'Animal Manuel',
+          category: (dto.petCategory || 'SMALL') as any,
+          species: 'CHIEN',
+          sex: 'UNKNOWN',
+          birthDate: new Date(),
+          breedId: 'UNKNOWN',
+          coatType: 'NORMAL',
+          groomingBehavior: 'EASY',
+          skinCondition: 'NORMAL',
+          weightKg: 10.0,
+        }
+      });
+      resolvedPetId = newPet.id;
+    }
+
+    await Promise.all([
+      this.prisma.salonClient.upsert({
+        where: { salonId_clientId: { salonId, clientId: resolvedClientId } },
+        update: {},
+        create: { salonId, clientId: resolvedClientId }
+      }),
+      this.prisma.salonPet.upsert({
+        where: { salonId_petId: { salonId, petId: resolvedPetId } },
+        update: {},
+        create: { salonId, petId: resolvedPetId }
+      })
+    ]);
+
+    const start = new Date(dto.slotStart);
+    const end = new Date(dto.slotEnd);
+    const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
+
+    let price = dto.manualPrice;
+    if (price === undefined || price === null) {
+      try {
+        const pet = await this.prisma.pet.findUnique({ where: { id: resolvedPetId } });
+        const baseRules = await this.prisma.baseRule.findMany({ where: { salonId, serviceId: dto.serviceId } });
+        const modifierRules = await this.prisma.modifierRule.findMany({ where: { salonId, isActive: true } });
+        const staff = await this.prisma.staffMember.findUnique({ where: { id: dto.staffId } });
+        const salonConfig = await this.prisma.salonConfig.findUnique({ where: { salonId } });
+
+        if (pet && baseRules.length > 0 && staff) {
+          const rule = findBaseRule(baseRules, dto.serviceId, pet.weightKg);
+          const activeMods = modifierRules.filter(m => {
+            if (m.triggerType === 'KNOTS' && dto.petNotes?.toLowerCase().includes('nœud')) return true;
+            return false;
+          });
+          const theoretical = computeTheoreticalDuration(rule, activeMods);
+          
+          const quote = buildQuote(
+            rule,
+            theoretical,
+            staff,
+            [],
+            activeMods,
+            salonConfig ? {
+              transitionBufferMin: salonConfig.transitionBufferMin,
+              clientDurationMarginPercent: salonConfig.clientDurationMarginPercent
+            } : undefined
+          );
+          price = quote.estimatedPrice;
+        } else {
+          price = 50.0;
+        }
+      } catch (err) {
+        price = 50.0;
+      }
+    }
+
+    return this.prisma.appointment.create({
+      data: {
+        clientId: resolvedClientId,
+        salonId,
+        serviceId: dto.serviceId,
+        petId: resolvedPetId,
+        staffId: dto.staffId,
+        slotStart: start,
+        slotEnd: end,
+        theoreticalDurationMinutes: durationMinutes,
+        actualDurationMinutes: durationMinutes,
+        clientDurationMax: durationMinutes,
+        tableDurationMinutes: durationMinutes,
+        estimatedPrice: price,
+        priceDisplayMode: 'exact',
+        isManual: true,
+        status: 'CONFIRMED',
+        hasKnotsToday: false,
+        precautions: dto.petNotes,
+      },
+      include: {
+        service: true,
+        client: true,
+        pet: true,
+        staff: true
+      }
+    });
+  }
+
   // ─── LECTURE ─────────────────────────────────────
 
   async findAllForClient(clientId: string, page = 1, limit = 20) {
@@ -148,6 +280,7 @@ export class AppointmentsService {
           internalNotes: true,
           lockExpiresAt: true,
           lockToken: true,
+          isManual: true,
           precautions: true,
           priceDisplayDisclaimer: true,
           priceDisplayMode: true,
@@ -199,6 +332,7 @@ export class AppointmentsService {
           internalNotes: true,
           lockExpiresAt: true,
           lockToken: true,
+          isManual: true,
           precautions: true,
           priceDisplayDisclaimer: true,
           priceDisplayMode: true,
@@ -248,6 +382,7 @@ export class AppointmentsService {
         internalNotes: true,
         lockExpiresAt: true,
         lockToken: true,
+        isManual: true,
         precautions: true,
         priceDisplayDisclaimer: true,
         priceDisplayMode: true,

@@ -167,3 +167,76 @@ export class GetStatsDto {
   period: 'today' | 'week' | 'month';
 }
 
+export class CreateManualAppointmentDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  serviceId: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientFirstName?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientLastName?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientEmail?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientPhoneNumber?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petName?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petCategory?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petNotes?: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  staffId: string;
+
+  @ApiProperty()
+  @IsDateString()
+  @IsNotEmpty()
+  slotStart: string;
+
+  @ApiProperty()
+  @IsDateString()
+  @IsNotEmpty()
+  slotEnd: string;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  manualPrice?: number;
+}
+
+

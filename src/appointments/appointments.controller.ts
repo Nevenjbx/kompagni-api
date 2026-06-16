@@ -21,6 +21,7 @@ import {
   GetSlotsDto,
   LockSlotDto,
   GetStatsDto,
+  CreateManualAppointmentDto,
 } from './dto/appointment.dto';
 
 @ApiTags('Appointments')
@@ -74,6 +75,15 @@ export class AppointmentsController {
     @Body() dto: CreateAppointmentDto,
   ) {
     return this.appointmentsService.create(req.user.id, salonId, dto);
+  }
+
+  @Post(':salonId/manual')
+  createManual(
+    @Req() req: AuthenticatedRequest,
+    @Param('salonId') salonId: string,
+    @Body() dto: CreateManualAppointmentDto,
+  ) {
+    return this.appointmentsService.createManual(req.user.id, salonId, dto);
   }
 
   @Get('my')

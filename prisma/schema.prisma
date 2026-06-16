@@ -255,6 +255,7 @@ model Appointment {
   internalNotes              String?
   lockExpiresAt              DateTime?
   lockToken                  String?
+  isManual                   Boolean            @default(false)
   precautions                String?
   priceDisplayDisclaimer     String?
   priceDisplayMode           String

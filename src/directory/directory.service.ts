@@ -253,6 +253,10 @@ export class DirectoryService {
           weightKg: true,
           sex: true,
           birthDate: true,
+          ownerId: true,
+          groomingBehavior: true,
+          skinCondition: true,
+          isNeutered: true,
         },
       }),
     ]);
