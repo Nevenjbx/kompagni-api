@@ -11,7 +11,7 @@ describe('KairosEngineService', () => {
   beforeEach(async () => {
     // We mock Prisma Service to track the number of calls
     const mockPrisma = {
-      salonConfig: { findUnique: jest.fn().mockResolvedValue({ concurrentLimits: '{"SMALL": 2}', planningHorizonDays: 1, slotGranularityMin: 30 }) },
+      salonConfig: { findUnique: jest.fn().mockResolvedValue({ groomingTables: ['LARGE', 'SMALL', 'SMALL'], planningHorizonDays: 1, slotGranularityMin: 30 }) },
       user: { findUnique: jest.fn().mockResolvedValue({ isBlocked: false }) },
       staffMember: { findMany: jest.fn().mockResolvedValue([{ id: 'staff1', role: 'PROFESSIONAL', speedIndex: 1.0, allowedServiceIds: ['srv1'], weeklySchedule: '[]', leaves: '[]' }]) },
       workingHours: { findMany: jest.fn().mockResolvedValue([{ dayOfWeek: new Date().getDay(), startTime: '09:00', endTime: '18:00' }]) },

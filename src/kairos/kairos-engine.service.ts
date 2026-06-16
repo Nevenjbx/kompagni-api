@@ -4,7 +4,7 @@ import {
   AnimalData, StaffData, QuoteResult, ClientBlockedException 
 } from '../engine/types';
 import { resolveAnimal } from '../engine/animal-resolver';
-import { findBaseRule, computeTheoreticalDuration, buildQuote } from '../engine/duration-engine';
+import { findBaseRule, computeTheoreticalDuration, buildQuote, SalonParams, DEFAULT_TRANSITION_BUFFER_MIN, DEFAULT_CLIENT_DURATION_MARGIN_PERCENT } from '../engine/duration-engine';
 import { getActiveModifiers, getStaffSpecificModifiers } from '../engine/modifier-evaluator';
 import { isAvailable, BookingData, WorkingDay } from './availability-checker';
 import { hasCapacity, BookingWithCategoryData } from './capacity-checker';
@@ -102,16 +102,16 @@ export class KairosEngineService {
       breakEndTime: wh.breakEndTime
     }));
 
-    let concurrentLimits = { "SMALL": 2, "LARGE": 1, "GIANT": 1, "CAT": 1, "NAC": 1 };
-    if (config?.concurrentLimits) {
-      try {
-        concurrentLimits = typeof config.concurrentLimits === 'string'
-          ? JSON.parse(config.concurrentLimits)
-          : (config.concurrentLimits as any);
-      } catch (err) {
-        // En cas d'erreur de parsing, le fallback par défaut est déjà conservé
-      }
-    }
+    const groomingTables: string[] = config?.groomingTables ?? ['LARGE', 'SMALL'];
+
+    // ---------------------------------------------------------
+    // SALON ALGORITHM PARAMETERS
+    // ---------------------------------------------------------
+    const salonParams: SalonParams = {
+      transitionBufferMin: config?.transitionBufferMin ?? DEFAULT_TRANSITION_BUFFER_MIN,
+      clientDurationMarginPercent: config?.clientDurationMarginPercent ?? DEFAULT_CLIENT_DURATION_MARGIN_PERCENT,
+    };
+    const breakBetweenMin = config?.breakBetweenAppointmentsMin ?? 0;
 
     // ---------------------------------------------------------
     // PRE-INDEXATION POUR L'OPTIMISATION DES PERFORMANCES (Map YYYY-MM-DD)
@@ -203,28 +203,30 @@ export class KairosEngineService {
           // We convert Prisma staff object to StaffData implicitly 
           // (need to cast role if necessary but properties match)
           const staffSpecificModifiers = getStaffSpecificModifiers(modifierRules, staff as any);
-          const quote = buildQuote(baseRule, T_theoretical, staff as any, staffSpecificModifiers, activeModifiers);
+          const quote = buildQuote(baseRule, T_theoretical, staff as any, staffSpecificModifiers, activeModifiers, salonParams);
 
           const slotStart = new Date(cursor);
+          // slotEnd includes the break between appointments for availability/capacity checks
+          const slotEndWithBreak = new Date(cursor.getTime() + (quote.actualDurationMinutes + breakBetweenMin) * 60000);
           const slotEnd = new Date(cursor.getTime() + quote.actualDurationMinutes * 60000);
 
-          // Gate 4: Past closing time
-          if (slotEnd > dayEnd) {
+          // Gate 4: Past closing time (use slotEndWithBreak to ensure break fits before closing)
+          if (slotEndWithBreak > dayEnd) {
             continue;
           }
 
           // Gate 3: Manual Block Check (Salon & Staff scopes)
-          if (isBlockedByManualBlock(slotStart, slotEnd, staff.id, dayManualBlocks)) {
+          if (isBlockedByManualBlock(slotStart, slotEndWithBreak, staff.id, dayManualBlocks)) {
             continue;
           }
 
           // Gate 5: Staff Availability
-          if (!isAvailable(staff as any, slotStart, slotEnd, dayAppointments, salonWorkingHours, absences)) {
+          if (!isAvailable(staff as any, slotStart, slotEndWithBreak, dayAppointments, salonWorkingHours, absences)) {
             continue;
           }
 
           // Gate 6: Capacity Checked
-          if (!hasCapacity(resolvedAnimal.category, slotStart, slotEnd, dayAppointments, concurrentLimits)) {
+          if (!hasCapacity(resolvedAnimal.category, slotStart, slotEndWithBreak, dayAppointments, groomingTables)) {
             continue;
           }
 

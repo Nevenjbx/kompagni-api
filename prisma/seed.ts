@@ -63,13 +63,7 @@ async function main() {
       validationMode: ValidationMode.AUTO,
       slotGranularityMin: 30,
       planningHorizonDays: 30,
-      concurrentLimits: {
-        SMALL: 2,
-        LARGE: 1,
-        GIANT: 1,
-        CAT: 1,
-        NAC: 1,
-      },
+      groomingTables: ['LARGE', 'SMALL', 'SMALL'],
     },
   });
 

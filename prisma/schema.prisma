@@ -94,10 +94,13 @@ model SalonConfig {
   pendingExpiryHours  Int             @default(24)
   slotGranularityMin  Int             @default(30)
   planningHorizonDays Int             @default(14)
-  concurrentLimits    Json            @default("{\"CAT\": 1, \"NAC\": 1, \"GIANT\": 1, \"LARGE\": 1, \"SMALL\": 2}")
-  cancelDeadlineHours Int             @default(24)
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  groomingTables      String[]        @default(["LARGE", "SMALL"])
+  cancelDeadlineHours            Int             @default(24)
+  transitionBufferMin            Int             @default(15)
+  clientDurationMarginPercent    Float           @default(10)
+  breakBetweenAppointmentsMin    Int             @default(0)
+  createdAt                      DateTime        @default(now())
+  updatedAt                      DateTime        @updatedAt
   salon               ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
 
   @@map("salon_configs")

@@ -1,7 +1,15 @@
 import { BaseRuleData, ModifierRuleData, StaffData, QuoteResult, MissingRuleException } from './types';
 import { computePrice } from './price-engine';
 
-export const TRANSITION_BUFFER = 15;
+/** Default values — used as fallback when SalonParams are not provided */
+export const DEFAULT_TRANSITION_BUFFER_MIN = 15;
+export const DEFAULT_CLIENT_DURATION_MARGIN_PERCENT = 10;
+
+/** Per-salon algorithm parameters, loaded from SalonConfig */
+export interface SalonParams {
+  transitionBufferMin: number;
+  clientDurationMarginPercent: number;
+}
 
 export function findBaseRule(
   rules: BaseRuleData[],
@@ -32,11 +40,16 @@ export function buildQuote(
   theoreticalDuration: number,
   staff: StaffData,
   staffModifiers: ModifierRuleData[],
-  activeModifiers: ModifierRuleData[]
+  activeModifiers: ModifierRuleData[],
+  salonParams?: SalonParams,
 ): QuoteResult {
+  const transitionBuffer = salonParams?.transitionBufferMin ?? DEFAULT_TRANSITION_BUFFER_MIN;
+  const marginPercent = salonParams?.clientDurationMarginPercent ?? DEFAULT_CLIENT_DURATION_MARGIN_PERCENT;
+  const marginMultiplier = 1 + (marginPercent / 100);
+
   const actualDurationMinutes = Math.round(theoreticalDuration * staff.speedIndex);
-  const clientDurationMax = Math.round(actualDurationMinutes * 1.10);
-  const tableDurationMinutes = clientDurationMax + TRANSITION_BUFFER;
+  const clientDurationMax = Math.round(actualDurationMinutes * marginMultiplier);
+  const tableDurationMinutes = clientDurationMax + transitionBuffer;
   
   const baseEstimatedPrice = computePrice(baseRule, theoreticalDuration);
   
@@ -61,3 +74,4 @@ export function buildQuote(
     appliedModifiers: allModifiers.map(m => m.triggerType)
   };
 }
+
