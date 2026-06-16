@@ -151,7 +151,15 @@ export class ProvidersService {
 
     return this.prisma.providerProfile.findMany({
       where,
-      include: { services: true },
+      include: {
+        services: {
+          select: {
+            id: true,
+            name: true,
+            animalTypes: true,
+          },
+        },
+      },
     });
   }
 }

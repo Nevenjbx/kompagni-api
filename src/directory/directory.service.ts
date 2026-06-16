@@ -7,32 +7,22 @@ export class DirectoryService {
 
   constructor(private prisma: PrismaService) {}
 
-  // ─── Helpers ─────────────────────────────────────
-
-  private async getSalonId(userId: string): Promise<string> {
-    const profile = await this.prisma.providerProfile.findUnique({ where: { userId } });
-    if (!profile) throw new ForbiddenException('Profil prestataire requis');
-    return profile.id;
-  }
-
   // ─── CLIENTS LIST ─────────────────────────────────
 
-  async getClients(userId: string, search?: string, page = 1, limit = 20) {
-    const salonId = await this.getSalonId(userId);
+  async getClients(salonId: string, search?: string, page = 1, limit = 20) {
+    if (!salonId) throw new ForbiddenException('Profil prestataire requis');
     const skip = (page - 1) * limit;
 
-    // Build the WHERE clause for clients who have at least one appointment in this salon
     const baseWhere: any = {
-      appointments: {
-        some: { salonId },
-      },
-      role: 'CLIENT',
+      salonId,
+      client: {
+        role: 'CLIENT',
+      }
     };
 
-    // Add search filter
     if (search && search.trim()) {
       const searchTerm = search.trim();
-      baseWhere.OR = [
+      baseWhere.client.OR = [
         { firstName: { contains: searchTerm, mode: 'insensitive' } },
         { lastName: { contains: searchTerm, mode: 'insensitive' } },
         { email: { contains: searchTerm, mode: 'insensitive' } },
@@ -40,69 +30,62 @@ export class DirectoryService {
       ];
     }
 
-    const [users, total] = await Promise.all([
-      this.prisma.user.findMany({
+    const [salonClients, total] = await Promise.all([
+      this.prisma.salonClient.findMany({
         where: baseWhere,
         select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phoneNumber: true,
-          isBlocked: true,
-          blockedReason: true,
-          cancellationCount: true,
-          _count: {
-            select: {
-              pets: true,
-            },
-          },
-          appointments: {
-            where: { salonId },
+          client: {
             select: {
               id: true,
-              slotStart: true,
-              status: true,
-            },
-            orderBy: { slotStart: 'desc' },
-            take: 1,
-          },
+              firstName: true,
+              lastName: true,
+              email: true,
+              phoneNumber: true,
+              isBlocked: true,
+              blockedReason: true,
+              cancellationCount: true,
+              _count: {
+                select: {
+                  pets: true,
+                  appointments: { where: { salonId } }
+                },
+              },
+              appointments: {
+                where: { salonId },
+                select: {
+                  id: true,
+                  slotStart: true,
+                  status: true,
+                },
+                orderBy: { slotStart: 'desc' },
+                take: 1,
+              },
+            }
+          }
         },
         orderBy: [
-          { lastName: 'asc' },
-          { firstName: 'asc' },
+          { client: { lastName: 'asc' } },
+          { client: { firstName: 'asc' } },
         ],
         skip,
         take: limit,
       }),
-      this.prisma.user.count({ where: baseWhere }),
+      this.prisma.salonClient.count({ where: baseWhere }),
     ]);
 
-    // Also count total appointments per client in this salon
-    const clientIds = users.map(u => u.id);
-    const appointmentCounts = clientIds.length > 0
-      ? await this.prisma.appointment.groupBy({
-          by: ['clientId'],
-          where: { salonId, clientId: { in: clientIds } },
-          _count: { id: true },
-        })
-      : [];
-
-    const countMap = new Map(appointmentCounts.map(a => [a.clientId, a._count.id]));
-
-    const items = users.map(user => ({
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phoneNumber: user.phoneNumber,
-      isBlocked: user.isBlocked,
-      blockedReason: user.blockedReason,
-      cancellationCount: user.cancellationCount,
-      petCount: user._count.pets,
-      totalAppointments: countMap.get(user.id) ?? 0,
-      lastAppointmentDate: user.appointments[0]?.slotStart ?? null,
-      lastAppointmentStatus: user.appointments[0]?.status ?? null,
+    const items = salonClients.map(({ client }) => ({
+      id: client.id,
+      firstName: client.firstName,
+      lastName: client.lastName,
+      email: client.email,
+      phoneNumber: client.phoneNumber,
+      isBlocked: client.isBlocked,
+      blockedReason: client.blockedReason,
+      cancellationCount: client.cancellationCount,
+      petCount: client._count.pets,
+      totalAppointments: client._count.appointments,
+      lastAppointmentDate: client.appointments[0]?.slotStart ?? null,
+      lastAppointmentStatus: client.appointments[0]?.status ?? null,
     }));
 
     return { items, total, page, limit };
@@ -110,86 +93,85 @@ export class DirectoryService {
 
   // ─── PETS LIST ────────────────────────────────────
 
-  async getPets(userId: string, search?: string, page = 1, limit = 20, species?: string) {
-    const salonId = await this.getSalonId(userId);
+  async getPets(salonId: string, search?: string, page = 1, limit = 20, species?: string) {
+    if (!salonId) throw new ForbiddenException('Profil prestataire requis');
     const skip = (page - 1) * limit;
 
-    // Build WHERE clause for pets that have at least one appointment in this salon
     const baseWhere: any = {
-      appointments: {
-        some: { salonId },
-      },
+      salonId,
+      pet: {}
     };
 
     if (species && species.trim()) {
-      baseWhere.species = { equals: species.trim(), mode: 'insensitive' };
+      baseWhere.pet.species = { equals: species.trim(), mode: 'insensitive' };
     }
 
     if (search && search.trim()) {
       const searchTerm = search.trim();
-      baseWhere.OR = [
+      baseWhere.pet.OR = [
         { name: { contains: searchTerm, mode: 'insensitive' } },
         { owner: { firstName: { contains: searchTerm, mode: 'insensitive' } } },
         { owner: { lastName: { contains: searchTerm, mode: 'insensitive' } } },
       ];
     }
 
-    const [pets, total] = await Promise.all([
-      this.prisma.pet.findMany({
+    if (Object.keys(baseWhere.pet).length === 0) {
+      delete baseWhere.pet;
+    }
+
+    const [salonPets, total] = await Promise.all([
+      this.prisma.salonPet.findMany({
         where: baseWhere,
         select: {
-          id: true,
-          name: true,
-          species: true,
-          breedId: true,
-          birthDate: true,
-          sex: true,
-          weightKg: true,
-          category: true,
-          coatType: true,
-          groomingBehavior: true,
-          skinCondition: true,
-          isNeutered: true,
-          ownerId: true,
-          owner: {
+          pet: {
             select: {
               id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          appointments: {
-            where: { salonId },
-            select: {
-              id: true,
-              slotStart: true,
-              status: true,
-            },
-            orderBy: { slotStart: 'desc' },
-            take: 1,
-          },
+              name: true,
+              species: true,
+              breedId: true,
+              birthDate: true,
+              sex: true,
+              weightKg: true,
+              category: true,
+              coatType: true,
+              groomingBehavior: true,
+              skinCondition: true,
+              isNeutered: true,
+              ownerId: true,
+              owner: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+              _count: {
+                select: {
+                  appointments: { where: { salonId } }
+                }
+              },
+              appointments: {
+                where: { salonId },
+                select: {
+                  id: true,
+                  slotStart: true,
+                  status: true,
+                },
+                orderBy: { slotStart: 'desc' },
+                take: 1,
+              },
+            }
+          }
         },
-        orderBy: { name: 'asc' },
+        orderBy: { pet: { name: 'asc' } },
         skip,
         take: limit,
       }),
-      this.prisma.pet.count({ where: baseWhere }),
+      this.prisma.salonPet.count({ where: baseWhere }),
     ]);
 
-    // Count total appointments per pet in this salon
-    const petIds = pets.map(p => p.id);
-    const appointmentCounts = petIds.length > 0
-      ? await this.prisma.appointment.groupBy({
-          by: ['petId'],
-          where: { salonId, petId: { in: petIds } },
-          _count: { id: true },
-        })
-      : [];
-
-    const countMap = new Map(appointmentCounts.map(a => [a.petId, a._count.id]));
-
-    const items = pets.map(pet => ({
+    const items = salonPets.map(({ pet }) => ({
       id: pet.id,
       name: pet.name,
       species: pet.species,
@@ -206,7 +188,7 @@ export class DirectoryService {
       ownerFirstName: pet.owner.firstName,
       ownerLastName: pet.owner.lastName,
       ownerEmail: pet.owner.email,
-      totalAppointments: countMap.get(pet.id) ?? 0,
+      totalAppointments: pet._count.appointments,
       lastAppointmentDate: pet.appointments[0]?.slotStart ?? null,
     }));
 
@@ -215,14 +197,14 @@ export class DirectoryService {
 
   // ─── CLIENT DETAIL ────────────────────────────────
 
-  async getClientDetail(userId: string, clientId: string) {
-    const salonId = await this.getSalonId(userId);
-
-    // Verify this client has had appointments in this salon
-    const hasAppointment = await this.prisma.appointment.findFirst({
-      where: { clientId, salonId },
+  async getClientDetail(salonId: string, clientId: string) {
+    if (!salonId) throw new ForbiddenException('Profil prestataire requis');
+    
+    const isSalonClient = await this.prisma.salonClient.findUnique({
+      where: { salonId_clientId: { salonId, clientId } }
     });
-    if (!hasAppointment) {
+
+    if (!isSalonClient) {
       throw new NotFoundException('Client non trouvé dans votre répertoire');
     }
 
@@ -256,11 +238,10 @@ export class DirectoryService {
         orderBy: { slotStart: 'desc' },
         take: 50,
       }),
-      // Get only pets that have appointments in this salon
       this.prisma.pet.findMany({
         where: {
           ownerId: clientId,
-          appointments: { some: { salonId } },
+          salonPets: { some: { salonId } }
         },
         select: {
           id: true,
@@ -290,14 +271,14 @@ export class DirectoryService {
 
   // ─── PET DETAIL ───────────────────────────────────
 
-  async getPetDetail(userId: string, petId: string) {
-    const salonId = await this.getSalonId(userId);
+  async getPetDetail(salonId: string, petId: string) {
+    if (!salonId) throw new ForbiddenException('Profil prestataire requis');
 
-    // Verify this pet has had appointments in this salon
-    const hasAppointment = await this.prisma.appointment.findFirst({
-      where: { petId, salonId },
+    const isSalonPet = await this.prisma.salonPet.findUnique({
+      where: { salonId_petId: { salonId, petId } }
     });
-    if (!hasAppointment) {
+
+    if (!isSalonPet) {
       throw new NotFoundException('Animal non trouvé dans votre répertoire');
     }
 

@@ -23,7 +23,10 @@ export class UsersService {
       return cached.user;
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id } });
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { providerProfile: { select: { id: true } } }
+    });
     if (user) {
       this.userCache.set(id, { user, expiresAt: now + 300000 }); // Cache 5 min
     }

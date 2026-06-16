@@ -96,6 +96,20 @@ export class AppointmentsService {
         lockToken: dto.lockToken,
       });
 
+      // 3. Inscrire le client et l'animal dans le répertoire du salon
+      await Promise.all([
+        this.prisma.salonClient.upsert({
+          where: { salonId_clientId: { salonId, clientId } },
+          update: {},
+          create: { salonId, clientId }
+        }),
+        this.prisma.salonPet.upsert({
+          where: { salonId_petId: { salonId, petId: dto.animalId } },
+          update: {},
+          create: { salonId, petId: dto.animalId }
+        })
+      ]);
+
       return appointment;
     } catch (error) {
       if (error instanceof LockExpiredException) {
@@ -144,10 +158,10 @@ export class AppointmentsService {
           staffId: true,
           tableDurationMinutes: true,
           theoreticalDurationMinutes: true,
-          service: true,
-          salon: true,
-          pet: true,
-          staff: true,
+          service: { select: { id: true, name: true } },
+          salon: { select: { id: true, businessName: true, address: true, city: true, postalCode: true, latitude: true, longitude: true } },
+          pet: { select: { id: true, ownerId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+          staff: { select: { id: true, name: true } },
         },
         orderBy: { slotStart: 'desc' },
         skip,
@@ -195,10 +209,10 @@ export class AppointmentsService {
           staffId: true,
           tableDurationMinutes: true,
           theoreticalDurationMinutes: true,
-          service: true,
-          client: true,
-          pet: true,
-          staff: true,
+          service: { select: { id: true, name: true, animalTypes: true } },
+          client: { select: { id: true, firstName: true, lastName: true, email: true, phoneNumber: true } },
+          pet: { select: { id: true, ownerId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+          staff: { select: { id: true, name: true } },
         },
         orderBy: { slotStart: 'asc' },
         skip,
@@ -244,10 +258,10 @@ export class AppointmentsService {
         staffId: true,
         tableDurationMinutes: true,
         theoreticalDurationMinutes: true,
-        service: true,
-        client: true,
-        pet: true,
-        staff: true,
+        service: { select: { id: true, name: true, animalTypes: true } },
+        client: { select: { id: true, firstName: true, lastName: true, email: true, phoneNumber: true } },
+        pet: { select: { id: true, ownerId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+        staff: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'asc' },
     });

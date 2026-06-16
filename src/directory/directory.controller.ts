@@ -24,7 +24,7 @@ export class DirectoryController {
     @Query('limit') limit?: string,
   ) {
     return this.directoryService.getClients(
-      req.user.id,
+      req.user.providerProfileId!,
       search,
       Number(page) || 1,
       Number(limit) || 20,
@@ -41,7 +41,7 @@ export class DirectoryController {
     @Query('species') species?: string,
   ) {
     return this.directoryService.getPets(
-      req.user.id,
+      req.user.providerProfileId!,
       search,
       Number(page) || 1,
       Number(limit) || 20,
@@ -55,7 +55,7 @@ export class DirectoryController {
     @Req() req: AuthenticatedRequest,
     @Param('clientId') clientId: string,
   ) {
-    return this.directoryService.getClientDetail(req.user.id, clientId);
+    return this.directoryService.getClientDetail(req.user.providerProfileId!, clientId);
   }
 
   @Get('pets/:petId')
@@ -64,6 +64,6 @@ export class DirectoryController {
     @Req() req: AuthenticatedRequest,
     @Param('petId') petId: string,
   ) {
-    return this.directoryService.getPetDetail(req.user.id, petId);
+    return this.directoryService.getPetDetail(req.user.providerProfileId!, petId);
   }
 }

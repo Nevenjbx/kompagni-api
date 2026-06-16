@@ -25,6 +25,7 @@ model User {
   pets              Pet[]
   providerProfile   ProviderProfile?
   favoriteProviders ProviderProfile[] @relation("UserFavorites")
+  salonClients      SalonClient[]
 
   @@map("users")
 }
@@ -49,7 +50,9 @@ model Pet {
   refinements      AnimalRefinement[]
   appointments     Appointment[]
   owner            User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  salonPets        SalonPet[]
 
+  @@index([ownerId])
   @@map("pets")
 }
 
@@ -78,6 +81,8 @@ model ProviderProfile {
   staff            StaffMember[]
   workingHours     WorkingHours[]
   favoritedBy      User[]            @relation("UserFavorites")
+  salonClients     SalonClient[]
+  salonPets        SalonPet[]
 
   @@map("provider_profiles")
 }
@@ -112,6 +117,7 @@ model StaffMember {
   appointments      Appointment[]
   salon             ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
 
+  @@index([salonId])
   @@map("staff_members")
 }
 
@@ -127,6 +133,7 @@ model Service {
   baseRules    BaseRule[]
   provider     ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("services")
 }
 
@@ -177,6 +184,7 @@ model WorkingHours {
   updatedAt      DateTime        @updatedAt
   provider       ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("working_hours")
 }
 
@@ -190,6 +198,7 @@ model ProviderAbsence {
   updatedAt  DateTime        @updatedAt
   provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId, startDate])
   @@map("provider_absences")
 }
 
@@ -207,6 +216,7 @@ model ManualBlock {
   createdAt     DateTime        @default(now())
   salon         ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
 
+  @@index([salonId, date])
   @@map("manual_blocks")
 }
 
@@ -264,6 +274,10 @@ model Appointment {
   @@index([clientId, slotStart])
   @@index([status])
   @@index([staffId, slotStart])
+  @@index([salonId, clientId, slotStart])
+  @@index([salonId, petId, slotStart])
+  @@index([petId])
+  @@index([serviceId])
   @@map("appointments")
 }
 
@@ -281,6 +295,8 @@ model AnimalRefinement {
   animal           Pet               @relation(fields: [animalId], references: [id], onDelete: Cascade)
   appointment      Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
+  @@index([animalId])
+  @@index([appointmentId])
   @@map("animal_refinements")
 }
 
@@ -295,7 +311,39 @@ model PriceAdjustment {
   appointment   Appointment     @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   salon         ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
 
+  @@index([appointmentId])
+  @@index([salonId])
   @@map("price_adjustments")
+}
+
+model SalonClient {
+  id        String          @id @default(uuid())
+  salonId   String
+  clientId  String
+  createdAt DateTime        @default(now())
+  
+  salon     ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  client    User            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  @@unique([salonId, clientId])
+  @@index([salonId])
+  @@index([clientId])
+  @@map("salon_clients")
+}
+
+model SalonPet {
+  id        String          @id @default(uuid())
+  salonId   String
+  petId     String
+  createdAt DateTime        @default(now())
+  
+  salon     ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  pet       Pet             @relation(fields: [petId], references: [id], onDelete: Cascade)
+  
+  @@unique([salonId, petId])
+  @@index([salonId])
+  @@index([petId])
+  @@map("salon_pets")
 }
 
 model WaitlistLead {
