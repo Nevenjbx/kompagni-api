@@ -186,6 +186,16 @@ export class CreateManualAppointmentDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  internalClientId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  internalPetId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
   clientFirstName?: string;
 
   @ApiProperty({ required: false })
@@ -216,7 +226,47 @@ export class CreateManualAppointmentDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  petSpecies?: string;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  petWeightKg?: number;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
   petNotes?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petSex?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petBreedId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petCoatType?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petGroomingBehavior?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petSkinCondition?: string;
+
+  @ApiProperty({ required: false })
+  @IsBoolean()
+  @IsOptional()
+  petIsNeutered?: boolean;
 
   @ApiProperty()
   @IsString()

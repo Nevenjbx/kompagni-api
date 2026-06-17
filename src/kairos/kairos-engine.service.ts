@@ -66,7 +66,7 @@ export class KairosEngineService {
           status: { in: ['CONFIRMED', 'PENDING', 'IN_PROGRESS'] },
           slotStart: { gte: today, lte: endOfHorizon },
         },
-        include: { pet: true },
+        include: { pet: true, internalPet: true },
         orderBy: { slotStart: 'asc' }
       }),
       this.prisma.manualBlock.findMany({ 
@@ -90,7 +90,7 @@ export class KairosEngineService {
       status: a.status,
       slotStart: a.slotStart,
       slotEnd: a.slotEnd,
-      petCategory: a.pet.category
+      petCategory: a.pet?.category ?? a.internalPet?.category ?? 'SMALL'
     }));
 
     // Map WorkingHours 

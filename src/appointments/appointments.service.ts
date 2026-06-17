@@ -132,57 +132,94 @@ export class AppointmentsService {
     }
 
     let resolvedClientId = dto.clientId;
-    if (!resolvedClientId) {
-      const uniqueEmail = dto.clientEmail || `manual_${randomUUID()}@kompagni.manual`;
-      const existingUser = await this.prisma.user.findUnique({ where: { email: uniqueEmail } });
-      if (existingUser) {
-        resolvedClientId = existingUser.id;
-      } else {
-        const newUser = await this.prisma.user.create({
-          data: {
-            email: uniqueEmail,
-            firstName: dto.clientFirstName || 'Client',
-            lastName: dto.clientLastName || 'Manuel',
-            phoneNumber: dto.clientPhoneNumber,
-            role: 'CLIENT',
-          }
-        });
-        resolvedClientId = newUser.id;
+    let resolvedInternalClientId = dto.internalClientId;
+
+    if (resolvedClientId && !resolvedInternalClientId) {
+      const isRealUser = await this.prisma.user.findUnique({ where: { id: resolvedClientId } });
+      if (!isRealUser) {
+        resolvedInternalClientId = resolvedClientId;
+        resolvedClientId = undefined;
       }
     }
 
-    let resolvedPetId = dto.petId;
-    if (!resolvedPetId) {
-      const newPet = await this.prisma.pet.create({
+    if (!resolvedClientId && !resolvedInternalClientId) {
+      const newClient = await this.prisma.salonInternalClient.create({
         data: {
-          ownerId: resolvedClientId,
-          name: dto.petName || 'Animal Manuel',
-          category: (dto.petCategory || 'SMALL') as any,
-          species: 'CHIEN',
-          sex: 'UNKNOWN',
-          birthDate: new Date(),
-          breedId: 'UNKNOWN',
-          coatType: 'NORMAL',
-          groomingBehavior: 'EASY',
-          skinCondition: 'NORMAL',
-          weightKg: 10.0,
+          salonId,
+          firstName: dto.clientFirstName || 'Client',
+          lastName: dto.clientLastName || 'Manuel',
+          phone: dto.clientPhoneNumber,
+          email: dto.clientEmail,
         }
       });
-      resolvedPetId = newPet.id;
+      resolvedInternalClientId = newClient.id;
     }
 
-    await Promise.all([
-      this.prisma.salonClient.upsert({
-        where: { salonId_clientId: { salonId, clientId: resolvedClientId } },
-        update: {},
-        create: { salonId, clientId: resolvedClientId }
-      }),
-      this.prisma.salonPet.upsert({
-        where: { salonId_petId: { salonId, petId: resolvedPetId } },
-        update: {},
-        create: { salonId, petId: resolvedPetId }
-      })
-    ]);
+    let resolvedPetId = dto.petId;
+    let resolvedInternalPetId = dto.internalPetId;
+
+    if (resolvedPetId && !resolvedInternalPetId) {
+      const isRealPet = await this.prisma.pet.findUnique({ where: { id: resolvedPetId } });
+      if (!isRealPet) {
+        resolvedInternalPetId = resolvedPetId;
+        resolvedPetId = undefined;
+      }
+    }
+
+    if (!resolvedPetId && !resolvedInternalPetId) {
+      if (resolvedClientId) {
+        const newPet = await this.prisma.pet.create({
+          data: {
+            ownerId: resolvedClientId,
+            name: dto.petName || 'Animal Manuel',
+            category: (dto.petCategory || 'SMALL') as any,
+            species: dto.petSpecies || 'CHIEN',
+            sex: dto.petSex || 'UNKNOWN',
+            birthDate: new Date(),
+            breedId: dto.petBreedId || 'UNKNOWN',
+            coatType: (dto.petCoatType || 'NORMAL') as any,
+            groomingBehavior: (dto.petGroomingBehavior || 'EASY') as any,
+            skinCondition: (dto.petSkinCondition || 'NORMAL') as any,
+            isNeutered: dto.petIsNeutered ?? false,
+            weightKg: dto.petWeightKg ?? 10.0,
+          }
+        });
+        resolvedPetId = newPet.id;
+      } else if (resolvedInternalClientId) {
+        const newPet = await this.prisma.salonInternalPet.create({
+          data: {
+            salonId,
+            clientId: resolvedInternalClientId,
+            name: dto.petName || 'Animal Manuel',
+            category: (dto.petCategory || 'SMALL') as any,
+            species: dto.petSpecies || 'CHIEN',
+            sex: dto.petSex || 'UNKNOWN',
+            breedId: dto.petBreedId || 'UNKNOWN',
+            coatType: (dto.petCoatType || 'NORMAL') as any,
+            groomingBehavior: (dto.petGroomingBehavior || 'EASY') as any,
+            skinCondition: (dto.petSkinCondition || 'NORMAL') as any,
+            isNeutered: dto.petIsNeutered ?? false,
+            weightKg: dto.petWeightKg ?? null,
+          }
+        });
+        resolvedInternalPetId = newPet.id;
+      }
+    }
+
+    if (resolvedClientId && resolvedPetId) {
+      await Promise.all([
+        this.prisma.salonClient.upsert({
+          where: { salonId_clientId: { salonId, clientId: resolvedClientId } },
+          update: {},
+          create: { salonId, clientId: resolvedClientId }
+        }),
+        this.prisma.salonPet.upsert({
+          where: { salonId_petId: { salonId, petId: resolvedPetId } },
+          update: {},
+          create: { salonId, petId: resolvedPetId }
+        })
+      ]);
+    }
 
     const start = new Date(dto.slotStart);
     const end = new Date(dto.slotEnd);
@@ -190,15 +227,27 @@ export class AppointmentsService {
 
     let price = dto.manualPrice;
     if (price === undefined || price === null) {
-      try {
+      let petWeight: number | null = null;
+      if (resolvedPetId) {
         const pet = await this.prisma.pet.findUnique({ where: { id: resolvedPetId } });
+        petWeight = pet?.weightKg ?? null;
+      } else if (resolvedInternalPetId) {
+        const pet = await this.prisma.salonInternalPet.findUnique({ where: { id: resolvedInternalPetId } });
+        petWeight = pet?.weightKg ?? null;
+      }
+
+      if (petWeight === null || petWeight === undefined) {
+        throw new BadRequestException("Le poids de l'animal est obligatoire pour la tarification automatique. Veuillez définir un prix manuel.");
+      }
+
+      try {
         const baseRules = await this.prisma.baseRule.findMany({ where: { salonId, serviceId: dto.serviceId } });
         const modifierRules = await this.prisma.modifierRule.findMany({ where: { salonId, isActive: true } });
         const staff = await this.prisma.staffMember.findUnique({ where: { id: dto.staffId } });
         const salonConfig = await this.prisma.salonConfig.findUnique({ where: { salonId } });
 
-        if (pet && baseRules.length > 0 && staff) {
-          const rule = findBaseRule(baseRules, dto.serviceId, pet.weightKg);
+        if (baseRules.length > 0 && staff) {
+          const rule = findBaseRule(baseRules, dto.serviceId, petWeight);
           const activeMods = modifierRules.filter(m => {
             if (m.triggerType === 'KNOTS' && dto.petNotes?.toLowerCase().includes('nœud')) return true;
             return false;
@@ -228,9 +277,11 @@ export class AppointmentsService {
     return this.prisma.appointment.create({
       data: {
         clientId: resolvedClientId,
+        internalClientId: resolvedInternalClientId,
         salonId,
         serviceId: dto.serviceId,
         petId: resolvedPetId,
+        internalPetId: resolvedInternalPetId,
         staffId: dto.staffId,
         slotStart: start,
         slotEnd: end,
@@ -248,7 +299,9 @@ export class AppointmentsService {
       include: {
         service: true,
         client: true,
+        internalClient: true,
         pet: true,
+        internalPet: true,
         staff: true
       }
     });
@@ -269,6 +322,8 @@ export class AppointmentsService {
           createdAt: true,
           updatedAt: true,
           petId: true,
+          internalPetId: true,
+          internalClientId: true,
           actualDurationMinutes: true,
           appliedModifiers: true,
           clientDurationMax: true,
@@ -294,6 +349,7 @@ export class AppointmentsService {
           service: { select: { id: true, name: true } },
           salon: { select: { id: true, businessName: true, address: true, city: true, postalCode: true, latitude: true, longitude: true } },
           pet: { select: { id: true, ownerId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+          internalPet: { select: { id: true, clientId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
           staff: { select: { id: true, name: true } },
         },
         orderBy: { slotStart: 'desc' },
@@ -321,6 +377,8 @@ export class AppointmentsService {
           createdAt: true,
           updatedAt: true,
           petId: true,
+          internalPetId: true,
+          internalClientId: true,
           actualDurationMinutes: true,
           appliedModifiers: true,
           clientDurationMax: true,
@@ -345,7 +403,9 @@ export class AppointmentsService {
           theoreticalDurationMinutes: true,
           service: { select: { id: true, name: true, animalTypes: true } },
           client: { select: { id: true, firstName: true, lastName: true, email: true, phoneNumber: true } },
+          internalClient: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
           pet: { select: { id: true, ownerId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+          internalPet: { select: { id: true, clientId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
           staff: { select: { id: true, name: true } },
         },
         orderBy: { slotStart: 'asc' },
@@ -371,6 +431,8 @@ export class AppointmentsService {
         createdAt: true,
         updatedAt: true,
         petId: true,
+        internalPetId: true,
+        internalClientId: true,
         actualDurationMinutes: true,
         appliedModifiers: true,
         clientDurationMax: true,
@@ -395,7 +457,9 @@ export class AppointmentsService {
         theoreticalDurationMinutes: true,
         service: { select: { id: true, name: true, animalTypes: true } },
         client: { select: { id: true, firstName: true, lastName: true, email: true, phoneNumber: true } },
+        internalClient: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
         pet: { select: { id: true, ownerId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+        internalPet: { select: { id: true, clientId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
         staff: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'asc' },
@@ -405,7 +469,7 @@ export class AppointmentsService {
   async findOne(id: string) {
     const apt = await this.prisma.appointment.findUnique({
       where: { id },
-      include: { service: true, salon: true, client: true, pet: true, staff: true },
+      include: { service: true, salon: true, client: true, pet: true, staff: true, internalClient: true, internalPet: true },
     });
     if (!apt) throw new NotFoundException('RDV non trouvé');
     return apt;

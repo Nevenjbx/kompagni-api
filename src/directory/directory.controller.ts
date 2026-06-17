@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Put, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -6,6 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 import { DirectoryService } from './directory.service';
+import { UpdateInternalClientDto, UpdateInternalPetDto } from './dto/update-internal.dto';
 
 @ApiTags('Directory')
 @Controller('directory')
@@ -65,5 +66,25 @@ export class DirectoryController {
     @Param('petId') petId: string,
   ) {
     return this.directoryService.getPetDetail(req.user.providerProfileId!, petId);
+  }
+
+  @Put('clients/:clientId/internal')
+  @ApiOperation({ summary: 'Update detailed info for an internal client' })
+  updateInternalClient(
+    @Req() req: AuthenticatedRequest,
+    @Param('clientId') clientId: string,
+    @Body() dto: UpdateInternalClientDto,
+  ) {
+    return this.directoryService.updateInternalClient(req.user.providerProfileId!, clientId, dto);
+  }
+
+  @Put('pets/:petId/internal')
+  @ApiOperation({ summary: 'Update detailed info for an internal pet' })
+  updateInternalPet(
+    @Req() req: AuthenticatedRequest,
+    @Param('petId') petId: string,
+    @Body() dto: UpdateInternalPetDto,
+  ) {
+    return this.directoryService.updateInternalPet(req.user.providerProfileId!, petId, dto);
   }
 }

@@ -24,14 +24,18 @@ async function main() {
   const uniqueSalonPets = new Map<string, { salonId: string; petId: string; createdAt: Date }>();
 
   for (const appt of appointments) {
-    const clientKey = `${appt.salonId}-${appt.clientId}`;
-    if (!uniqueSalonClients.has(clientKey)) {
-      uniqueSalonClients.set(clientKey, { salonId: appt.salonId, clientId: appt.clientId, createdAt: appt.createdAt });
+    if (appt.clientId) {
+      const clientKey = `${appt.salonId}-${appt.clientId}`;
+      if (!uniqueSalonClients.has(clientKey)) {
+        uniqueSalonClients.set(clientKey, { salonId: appt.salonId, clientId: appt.clientId, createdAt: appt.createdAt });
+      }
     }
 
-    const petKey = `${appt.salonId}-${appt.petId}`;
-    if (!uniqueSalonPets.has(petKey)) {
-      uniqueSalonPets.set(petKey, { salonId: appt.salonId, petId: appt.petId, createdAt: appt.createdAt });
+    if (appt.petId) {
+      const petKey = `${appt.salonId}-${appt.petId}`;
+      if (!uniqueSalonPets.has(petKey)) {
+        uniqueSalonPets.set(petKey, { salonId: appt.salonId, petId: appt.petId, createdAt: appt.createdAt });
+      }
     }
   }
 
