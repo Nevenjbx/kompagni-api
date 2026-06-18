@@ -117,6 +117,7 @@ model StaffMember {
   allowedServiceIds String[]
   weeklySchedule    Json            @default("[]")
   leaves            Json            @default("[]")
+  followSalonSchedule Boolean       @default(true)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   appointments      Appointment[]

@@ -57,39 +57,47 @@ export function isAvailable(
     if (hasLeaf) return false;
   }
 
-  // 4. Check staff weekly schedule rules vs Salon hours
-  // Usually if staff has no specific weekly schedule, they follow salon working hours.
-  // Wait, the plan says: `isAvailable() - 2. Check weekly schedule. 3. Check breaks.`
-  // For now we will rely on Gate 1 (isSalonOpen) and Gate 4 (slotEnd <= closingTime) for base hours,
-  // but if staff has custom hours, we check here.
-  const staffSchedule: any[] = typeof staff.weeklySchedule === 'string' 
-     ? JSON.parse(staff.weeklySchedule) 
-     : staff.weeklySchedule;
-
+  // 4. Check staff weekly schedule vs salon hours
   const dayOfWeek = start.getDay();
-  let dayRule = salonWorkingHours.find(wh => wh.dayOfWeek === dayOfWeek);
+  const salonDayRule = salonWorkingHours.find(wh => wh.dayOfWeek === dayOfWeek);
 
-  if (Array.isArray(staffSchedule) && staffSchedule.length > 0) {
-     const staffRule = staffSchedule.find(s => s.dayOfWeek === dayOfWeek);
-     if (staffRule) {
-       // Staff has a custom rule. 
-       if (!isTimeWithinBounds(start, end, staffRule.startTime, staffRule.endTime)) {
-         return false;
-       }
-       if (staffRule.breakStartTime && staffRule.breakEndTime) {
-         if (overlapsBreak(start, end, staffRule.breakStartTime, staffRule.breakEndTime)) {
-           return false;
-         }
-       }
-       return true; // Staff rule passes
-     }
+  if (staff.followSalonSchedule) {
+    // Mode salon : vérifier uniquement la pause du salon
+    if (salonDayRule?.breakStartTime && salonDayRule?.breakEndTime) {
+      if (overlapsBreak(start, end, salonDayRule.breakStartTime, salonDayRule.breakEndTime)) {
+        return false;
+      }
+    }
+    return true;
   }
 
-  // If no staff specific rule, check salon breaks
-  if (dayRule && dayRule.breakStartTime && dayRule.breakEndTime) {
-     if (overlapsBreak(start, end, dayRule.breakStartTime, dayRule.breakEndTime)) {
-       return false;
-     }
+  // Mode custom : l'employé a ses propres horaires
+  const staffSchedule: any[] = typeof staff.weeklySchedule === 'string'
+    ? JSON.parse(staff.weeklySchedule)
+    : staff.weeklySchedule;
+
+  const staffRule = (Array.isArray(staffSchedule) ? staffSchedule : [])
+    .find(s => s.dayOfWeek === dayOfWeek);
+
+  if (!staffRule) return false; // Pas d'entrée pour ce jour → l'employé ne travaille pas
+
+  // Vérifier les bornes de l'employé
+  if (!isTimeWithinBounds(start, end, staffRule.startTime, staffRule.endTime)) {
+    return false;
+  }
+
+  // Vérifier la pause de l'employé
+  if (staffRule.breakStartTime && staffRule.breakEndTime) {
+    if (overlapsBreak(start, end, staffRule.breakStartTime, staffRule.breakEndTime)) {
+      return false;
+    }
+  }
+
+  // Vérifier aussi la pause du salon
+  if (salonDayRule?.breakStartTime && salonDayRule?.breakEndTime) {
+    if (overlapsBreak(start, end, salonDayRule.breakStartTime, salonDayRule.breakEndTime)) {
+      return false;
+    }
   }
 
   return true;

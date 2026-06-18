@@ -37,6 +37,7 @@ export interface StaffData {
   allowedServiceIds: string[];
   weeklySchedule?: any;
   leaves?: any;
+  followSalonSchedule: boolean;
 }
 
 export interface AnimalData {
