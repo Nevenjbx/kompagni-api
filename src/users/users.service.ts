@@ -1,10 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
+  private readonly userCache = new Map<string, { user: any; expiresAt: number }>();
 
   constructor(
     private prisma: PrismaService,
@@ -16,7 +17,20 @@ export class UsersService {
   }
 
   async findById(id: string) {
-    return this.prisma.user.findUnique({ where: { id } });
+    const now = Date.now();
+    const cached = this.userCache.get(id);
+    if (cached && cached.expiresAt > now) {
+      return cached.user;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { providerProfile: { select: { id: true } } }
+    });
+    if (user) {
+      this.userCache.set(id, { user, expiresAt: now + 300000 }); // Cache 5 min
+    }
+    return user;
   }
 
   async checkEmail(email: string): Promise<boolean> {
@@ -42,6 +56,8 @@ export class UsersService {
       tags?: string[];
     },
   ) {
+    // Invalider le cache utilisateur
+    this.userCache.delete(id);
     // 0. Clean up "Ghost Users" (Same email, different ID)
     // This happens if a user was deleted in Supabase but not locally, and then signs up again.
     const existingByEmail = await this.prisma.user.findUnique({
@@ -49,7 +65,7 @@ export class UsersService {
     });
 
     if (existingByEmail && existingByEmail.id !== id) {
-      console.warn(`[SyncUser] Found potential ghost user with email ${email} (ID: ${existingByEmail.id}) while syncing new ID ${id}. Deleting old record.`);
+      this.logger.warn(`[SyncUser] Found potential ghost user with email ${email} (ID: ${existingByEmail.id}) while syncing new ID ${id}. Deleting old record.`);
       await this.prisma.user.delete({
         where: { id: existingByEmail.id },
       });
@@ -178,14 +194,44 @@ export class UsersService {
 
   // --- Blocking ---
 
-  async blockClient(clientId: string, reason?: string) {
+  async blockClient(requestingUser: { id: string; role: string }, clientId: string, reason?: string) {
+    if (requestingUser.role === 'PROVIDER') {
+      const profile = await this.prisma.providerProfile.findUnique({ where: { userId: requestingUser.id } });
+      if (!profile) throw new ForbiddenException('Profil prestataire non trouvé');
+
+      const hasAppointment = await this.prisma.appointment.findFirst({
+        where: { clientId, salonId: profile.id }
+      });
+      if (!hasAppointment) {
+        throw new ForbiddenException('Vous ne pouvez bloquer que les clients ayant déjà réservé dans votre salon');
+      }
+    }
+
+    // Invalider le cache
+    this.userCache.delete(clientId);
+
     return this.prisma.user.update({
       where: { id: clientId },
       data: { isBlocked: true, blockedReason: reason },
     });
   }
 
-  async unblockClient(clientId: string) {
+  async unblockClient(requestingUser: { id: string; role: string }, clientId: string) {
+    if (requestingUser.role === 'PROVIDER') {
+      const profile = await this.prisma.providerProfile.findUnique({ where: { userId: requestingUser.id } });
+      if (!profile) throw new ForbiddenException('Profil prestataire non trouvé');
+
+      const hasAppointment = await this.prisma.appointment.findFirst({
+        where: { clientId, salonId: profile.id }
+      });
+      if (!hasAppointment) {
+        throw new ForbiddenException('Vous ne pouvez débloquer que les clients ayant déjà réservé dans votre salon');
+      }
+    }
+
+    // Invalider le cache
+    this.userCache.delete(clientId);
+
     return this.prisma.user.update({
       where: { id: clientId },
       data: { isBlocked: false, blockedReason: null },

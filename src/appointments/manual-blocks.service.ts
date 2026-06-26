@@ -1,16 +1,36 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BlockType, BlockScope } from '@prisma/client';
+import { IsEnum, IsISO8601, IsOptional, IsString } from 'class-validator';
 
 export class CreateManualBlockDto {
-  salonId: string;
+  @IsEnum(BlockType)
   type: BlockType;
+
+  @IsEnum(BlockScope)
   scope: BlockScope;
+
+  @IsISO8601()
   date: string; // ISO date
+
+  @IsOptional()
+  @IsString()
   halfDay?: string;
+
+  @IsOptional()
+  @IsString()
   startTime?: string;
+
+  @IsOptional()
+  @IsString()
   endTime?: string;
+
+  @IsOptional()
+  @IsString()
   targetStaffId?: string;
+
+  @IsOptional()
+  @IsString()
   reason?: string;
 }
 

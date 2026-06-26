@@ -38,6 +38,11 @@ export class CreateStaffDto {
   @IsString({ each: true })
   @IsOptional()
   allowedServiceIds?: string[];
+
+  @ApiProperty({ required: false, default: true })
+  @IsBoolean()
+  @IsOptional()
+  followSalonSchedule?: boolean;
 }
 
 export class UpdateStaffDto {
@@ -69,4 +74,9 @@ export class UpdateStaffDto {
   @IsString({ each: true })
   @IsOptional()
   allowedServiceIds?: string[];
+
+  @ApiProperty({ required: false, default: true })
+  @IsBoolean()
+  @IsOptional()
+  followSalonSchedule?: boolean;
 }

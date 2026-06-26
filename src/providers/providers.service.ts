@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateProviderDto,
@@ -21,7 +21,7 @@ export class ProvidersService {
     });
 
     if (existing) {
-      throw new Error('User already has a provider profile');
+      throw new ConflictException('Un profil prestataire existe déjà pour cet utilisateur');
     }
 
     return this.prisma.providerProfile.create({
@@ -151,7 +151,15 @@ export class ProvidersService {
 
     return this.prisma.providerProfile.findMany({
       where,
-      include: { services: true },
+      include: {
+        services: {
+          select: {
+            id: true,
+            name: true,
+            animalTypes: true,
+          },
+        },
+      },
     });
   }
 }

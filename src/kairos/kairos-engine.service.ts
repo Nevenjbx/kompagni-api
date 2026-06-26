@@ -4,7 +4,7 @@ import {
   AnimalData, StaffData, QuoteResult, ClientBlockedException 
 } from '../engine/types';
 import { resolveAnimal } from '../engine/animal-resolver';
-import { findBaseRule, computeTheoreticalDuration, buildQuote } from '../engine/duration-engine';
+import { findBaseRule, computeTheoreticalDuration, buildQuote, SalonParams, DEFAULT_TRANSITION_BUFFER_MIN, DEFAULT_CLIENT_DURATION_MARGIN_PERCENT } from '../engine/duration-engine';
 import { getActiveModifiers, getStaffSpecificModifiers } from '../engine/modifier-evaluator';
 import { isAvailable, BookingData, WorkingDay } from './availability-checker';
 import { hasCapacity, BookingWithCategoryData } from './capacity-checker';
@@ -66,7 +66,7 @@ export class KairosEngineService {
           status: { in: ['CONFIRMED', 'PENDING', 'IN_PROGRESS'] },
           slotStart: { gte: today, lte: endOfHorizon },
         },
-        include: { pet: true },
+        include: { pet: true, internalPet: true },
         orderBy: { slotStart: 'asc' }
       }),
       this.prisma.manualBlock.findMany({ 
@@ -90,7 +90,7 @@ export class KairosEngineService {
       status: a.status,
       slotStart: a.slotStart,
       slotEnd: a.slotEnd,
-      petCategory: a.pet.category
+      petCategory: a.pet?.category ?? a.internalPet?.category ?? 'SMALL'
     }));
 
     // Map WorkingHours 
@@ -102,9 +102,42 @@ export class KairosEngineService {
       breakEndTime: wh.breakEndTime
     }));
 
-    const concurrentLimits = config?.concurrentLimits 
-      ? (typeof config.concurrentLimits === 'string' ? JSON.parse(config.concurrentLimits) : config.concurrentLimits)
-      : { "SMALL": 2, "LARGE": 1, "GIANT": 1, "CAT": 1, "NAC": 1 };
+    const groomingTables: string[] = config?.groomingTables ?? ['LARGE', 'SMALL'];
+
+    // ---------------------------------------------------------
+    // SALON ALGORITHM PARAMETERS
+    // ---------------------------------------------------------
+    const salonParams: SalonParams = {
+      transitionBufferMin: config?.transitionBufferMin ?? DEFAULT_TRANSITION_BUFFER_MIN,
+      clientDurationMarginPercent: config?.clientDurationMarginPercent ?? DEFAULT_CLIENT_DURATION_MARGIN_PERCENT,
+    };
+    const breakBetweenMin = config?.breakBetweenAppointmentsMin ?? 0;
+
+    // ---------------------------------------------------------
+    // PRE-INDEXATION POUR L'OPTIMISATION DES PERFORMANCES (Map YYYY-MM-DD)
+    // ---------------------------------------------------------
+    const formatDateKey = (d: Date) => 
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    // Indexation des rendez-vous par jour
+    const appointmentsByDate = new Map<string, BookingWithCategoryData[]>();
+    for (const appt of allAppointments) {
+      const key = formatDateKey(appt.slotStart);
+      if (!appointmentsByDate.has(key)) {
+        appointmentsByDate.set(key, []);
+      }
+      appointmentsByDate.get(key)!.push(appt);
+    }
+
+    // Indexation des blocages manuels par jour
+    const manualBlocksByDate = new Map<string, typeof manualBlocks>();
+    for (const block of manualBlocks) {
+      const key = formatDateKey(block.date);
+      if (!manualBlocksByDate.has(key)) {
+        manualBlocksByDate.set(key, []);
+      }
+      manualBlocksByDate.get(key)!.push(block);
+    }
 
     // ---------------------------------------------------------
     // 2-LEVEL COMPUTATION (Outside staff loop)
@@ -126,9 +159,12 @@ export class KairosEngineService {
       const dayHours = salonWorkingHours.find(wh => wh.dayOfWeek === dayOfWeek);
       if (!dayHours) continue; // Closed
 
+      const currentDayKey = formatDateKey(currentDay);
+      const dayAppointments = appointmentsByDate.get(currentDayKey) ?? [];
+      const dayManualBlocks = manualBlocksByDate.get(currentDayKey) ?? [];
+
       // Check Full Day manual block
-      const hasFullDayBlock = manualBlocks.some(b => 
-        new Date(b.date).toDateString() === currentDay.toDateString() &&
+      const hasFullDayBlock = dayManualBlocks.some(b => 
         b.type === 'FULL_DAY' && 
         b.scope === 'SALON'
       );
@@ -167,23 +203,30 @@ export class KairosEngineService {
           // We convert Prisma staff object to StaffData implicitly 
           // (need to cast role if necessary but properties match)
           const staffSpecificModifiers = getStaffSpecificModifiers(modifierRules, staff as any);
-          const quote = buildQuote(baseRule, T_theoretical, staff as any, staffSpecificModifiers, activeModifiers);
+          const quote = buildQuote(baseRule, T_theoretical, staff as any, staffSpecificModifiers, activeModifiers, salonParams);
 
           const slotStart = new Date(cursor);
+          // slotEnd includes the break between appointments for availability/capacity checks
+          const slotEndWithBreak = new Date(cursor.getTime() + (quote.actualDurationMinutes + breakBetweenMin) * 60000);
           const slotEnd = new Date(cursor.getTime() + quote.actualDurationMinutes * 60000);
 
-          // Gate 4: Past closing time
-          if (slotEnd > dayEnd) {
+          // Gate 4: Past closing time (use slotEndWithBreak to ensure break fits before closing)
+          if (slotEndWithBreak > dayEnd) {
+            continue;
+          }
+
+          // Gate 3: Manual Block Check (Salon & Staff scopes)
+          if (isBlockedByManualBlock(slotStart, slotEndWithBreak, staff.id, dayManualBlocks)) {
             continue;
           }
 
           // Gate 5: Staff Availability
-          if (!isAvailable(staff as any, slotStart, slotEnd, allAppointments, salonWorkingHours, absences)) {
+          if (!isAvailable(staff as any, slotStart, slotEndWithBreak, dayAppointments, salonWorkingHours, absences)) {
             continue;
           }
 
           // Gate 6: Capacity Checked
-          if (!hasCapacity(resolvedAnimal.category, slotStart, slotEnd, allAppointments, concurrentLimits)) {
+          if (!hasCapacity(resolvedAnimal.category, slotStart, slotEndWithBreak, dayAppointments, groomingTables)) {
             continue;
           }
 
@@ -209,4 +252,49 @@ export class KairosEngineService {
 
     return response;
   }
+}
+
+function isBlockedByManualBlock(
+  start: Date,
+  end: Date,
+  staffId: string,
+  dayManualBlocks: any[],
+): boolean {
+  const formatTimeMins = (h: number, m: number) => h * 60 + m;
+  const getSlotStartMins = start.getHours() * 60 + start.getMinutes();
+  const getSlotEndMins = end.getHours() * 60 + end.getMinutes();
+
+  return dayManualBlocks.some(b => {
+    // 1. Scope filter: applies to salon or to this staff member
+    if (b.scope === 'STAFF' && b.targetStaffId !== staffId) {
+      return false;
+    }
+
+    // 2. Overlap validation based on type
+    if (b.type === 'FULL_DAY') {
+      return true;
+    }
+
+    if (b.type === 'HALF_DAY') {
+      const slotMidPointHour = (start.getHours() + end.getHours()) / 2;
+      if (b.halfDay === 'morning' || b.halfDay === 'MORNING') {
+        return slotMidPointHour < 13;
+      } else if (b.halfDay === 'afternoon' || b.halfDay === 'AFTERNOON') {
+        return slotMidPointHour >= 13;
+      }
+    }
+
+    if (b.type === 'TIME_RANGE') {
+      if (b.startTime && b.endTime) {
+        const [bStartH, bStartM] = b.startTime.split(':').map(Number);
+        const [bEndH, bEndM] = b.endTime.split(':').map(Number);
+        const blockStartMins = formatTimeMins(bStartH, bStartM);
+        const blockEndMins = formatTimeMins(bEndH, bEndM);
+        // Check overlap: slotStart < blockEnd AND slotEnd > blockStart
+        return getSlotStartMins < blockEndMins && getSlotEndMins > blockStartMins;
+      }
+    }
+
+    return false;
+  });
 }

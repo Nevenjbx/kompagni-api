@@ -106,17 +106,23 @@ export class UsersController {
   // --- Blocking ---
 
   @Post(':id/block')
+  @Roles(Role.ADMIN, Role.PROVIDER)
   @ApiOperation({ summary: 'Block a client from booking' })
   async blockClient(
+    @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() body: { reason?: string },
   ) {
-    return this.usersService.blockClient(id, body.reason);
+    return this.usersService.blockClient(req.user, id, body.reason);
   }
 
   @Post(':id/unblock')
+  @Roles(Role.ADMIN, Role.PROVIDER)
   @ApiOperation({ summary: 'Unblock a client' })
-  async unblockClient(@Param('id') id: string) {
-    return this.usersService.unblockClient(id);
+  async unblockClient(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    return this.usersService.unblockClient(req.user, id);
   }
 }

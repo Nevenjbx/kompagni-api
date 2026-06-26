@@ -12,14 +12,53 @@ async function bootstrap() {
 
   // Security middleware
   app.use(helmet());
+  const isDev = process.env.NODE_ENV !== 'production';
   app.enableCors({
-    origin: true, // Allow any origin for development
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, postman)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const devOrigins = [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:5173',
+        'http://localhost:8000',
+        'http://localhost:8080',
+      ];
+
+      // Parse FRONTEND_URL environment variable (supports comma-separated list of origins)
+      const allowedOrigins = process.env.FRONTEND_URL
+        ? process.env.FRONTEND_URL.split(',').map((o) => o.trim())
+        : [];
+
+      // Check if origin matches allowed patterns
+      const isAllowed =
+        isDev ||
+        devOrigins.includes(origin) ||
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.pages.dev') || // Cloudflare Pages
+        origin.endsWith('.vercel.app'); // Vercel
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });
 
   // Global pipes and interceptors
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
   app.useGlobalInterceptors(
     new ClassSerializerInterceptor(app.get(Reflector)),
     new LoggingInterceptor(),

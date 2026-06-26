@@ -1,5 +1,6 @@
 import { ModifierRuleData, AnimalData, StaffData, AppointmentNoteData } from './types';
 import { computeDifficultyScore } from './difficulty-score';
+import { getDaysPassed } from './utils';
 
 export function getActiveModifiers(
   rules: ModifierRuleData[],
@@ -40,8 +41,4 @@ export function getStaffSpecificModifiers(
   });
 }
 
-function getDaysPassed(date: Date): number {
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - date.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-}
+

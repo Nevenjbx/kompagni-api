@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto, UpdateStaffDto } from './dto/staff.dto';
 
@@ -12,8 +12,34 @@ export class StaffService {
     return profile.id;
   }
 
+  private async validateCustomSchedule(salonId: string, weeklySchedule: any[]) {
+    if (!Array.isArray(weeklySchedule)) return;
+    
+    const salonHours = await this.prisma.workingHours.findMany({ 
+      where: { providerId: salonId } 
+    });
+
+    for (const entry of weeklySchedule) {
+      const salonDay = salonHours.find(wh => wh.dayOfWeek === entry.dayOfWeek);
+      if (!salonDay) {
+        throw new BadRequestException(
+          `Le salon est fermé le jour ${entry.dayOfWeek}. L'employé ne peut pas y travailler.`
+        );
+      }
+      // Vérifier bornes : employé ⊆ salon
+      if (entry.startTime < salonDay.startTime || entry.endTime > salonDay.endTime) {
+        throw new BadRequestException(
+          `Les horaires du jour ${entry.dayOfWeek} (${entry.startTime}-${entry.endTime}) dépassent ceux du salon (${salonDay.startTime}-${salonDay.endTime}).`
+        );
+      }
+    }
+  }
+
   async create(userId: string, dto: CreateStaffDto) {
     const salonId = await this.getSalonId(userId);
+    if (dto.followSalonSchedule === false && dto.weeklySchedule) {
+      await this.validateCustomSchedule(salonId, dto.weeklySchedule);
+    }
     return this.prisma.staffMember.create({
       data: { salonId, ...dto },
     });
@@ -37,7 +63,10 @@ export class StaffService {
   }
 
   async update(userId: string, staffId: string, dto: UpdateStaffDto) {
-    await this.findOne(userId, staffId); // Vérifie ownership
+    const staff = await this.findOne(userId, staffId); // Vérifie ownership
+    if (dto.followSalonSchedule === false && dto.weeklySchedule) {
+      await this.validateCustomSchedule(staff.salonId, dto.weeklySchedule);
+    }
     return this.prisma.staffMember.update({
       where: { id: staffId },
       data: dto,

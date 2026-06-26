@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { KairosEngineService } from '../kairos/kairos-engine.service';
@@ -13,12 +14,18 @@ import {
   UpdateAppointmentStatusDto,
   GetSlotsDto,
   LockSlotDto,
+  CreateManualAppointmentDto,
 } from './dto/appointment.dto';
 import { Prisma } from '@prisma/client';
+import { Cron } from '@nestjs/schedule';
 import dayjs from 'dayjs';
+import { randomUUID } from 'crypto';
+import { findBaseRule, computeTheoreticalDuration, buildQuote } from '../engine/duration-engine';
 
 @Injectable()
 export class AppointmentsService {
+  private readonly logger = new Logger(AppointmentsService.name);
+
   constructor(
     private prisma: PrismaService,
     private kairosEngine: KairosEngineService,
@@ -27,7 +34,7 @@ export class AppointmentsService {
 
   // ─── SLOTS ──────────────────────────────────────
 
-  async getAvailableSlots(salonId: string, dto: GetSlotsDto) {
+  async getAvailableSlots(clientId: string, salonId: string, dto: GetSlotsDto) {
     const pet = await this.prisma.pet.findUnique({ where: { id: dto.animalId } });
     if (!pet) throw new NotFoundException('Animal non trouvé');
 
@@ -45,7 +52,7 @@ export class AppointmentsService {
     };
 
     return this.kairosEngine.generate({
-      clientId: 'guest', // Using a placeholder since getAvailableSlots doesn't take auth
+      clientId,
       salonId,
       serviceId: dto.serviceId,
       animal,
@@ -92,6 +99,20 @@ export class AppointmentsService {
         lockToken: dto.lockToken,
       });
 
+      // 3. Inscrire le client et l'animal dans le répertoire du salon
+      await Promise.all([
+        this.prisma.salonClient.upsert({
+          where: { salonId_clientId: { salonId, clientId } },
+          update: {},
+          create: { salonId, clientId }
+        }),
+        this.prisma.salonPet.upsert({
+          where: { salonId_petId: { salonId, petId: dto.animalId } },
+          update: {},
+          create: { salonId, petId: dto.animalId }
+        })
+      ]);
+
       return appointment;
     } catch (error) {
       if (error instanceof LockExpiredException) {
@@ -104,6 +125,188 @@ export class AppointmentsService {
     }
   }
 
+  async createManual(userId: string, salonId: string, dto: CreateManualAppointmentDto) {
+    const profile = await this.prisma.providerProfile.findUnique({ where: { userId } });
+    if (!profile || profile.id !== salonId) {
+      throw new ForbiddenException('Non autorisé à ajouter un rendez-vous dans ce salon');
+    }
+
+    let resolvedClientId = dto.clientId;
+    let resolvedInternalClientId = dto.internalClientId;
+
+    if (resolvedClientId && !resolvedInternalClientId) {
+      const isRealUser = await this.prisma.user.findUnique({ where: { id: resolvedClientId } });
+      if (!isRealUser) {
+        resolvedInternalClientId = resolvedClientId;
+        resolvedClientId = undefined;
+      }
+    }
+
+    if (!resolvedClientId && !resolvedInternalClientId) {
+      const newClient = await this.prisma.salonInternalClient.create({
+        data: {
+          salonId,
+          firstName: dto.clientFirstName || 'Client',
+          lastName: dto.clientLastName || 'Manuel',
+          phone: dto.clientPhoneNumber,
+          email: dto.clientEmail,
+        }
+      });
+      resolvedInternalClientId = newClient.id;
+    }
+
+    let resolvedPetId = dto.petId;
+    let resolvedInternalPetId = dto.internalPetId;
+
+    if (resolvedPetId && !resolvedInternalPetId) {
+      const isRealPet = await this.prisma.pet.findUnique({ where: { id: resolvedPetId } });
+      if (!isRealPet) {
+        resolvedInternalPetId = resolvedPetId;
+        resolvedPetId = undefined;
+      }
+    }
+
+    if (!resolvedPetId && !resolvedInternalPetId) {
+      if (resolvedClientId) {
+        const newPet = await this.prisma.pet.create({
+          data: {
+            ownerId: resolvedClientId,
+            name: dto.petName || 'Animal Manuel',
+            category: (dto.petCategory || 'SMALL') as any,
+            species: dto.petSpecies || 'CHIEN',
+            sex: dto.petSex || 'UNKNOWN',
+            birthDate: new Date(),
+            breedId: dto.petBreedId || 'UNKNOWN',
+            coatType: (dto.petCoatType || 'NORMAL') as any,
+            groomingBehavior: (dto.petGroomingBehavior || 'EASY') as any,
+            skinCondition: (dto.petSkinCondition || 'NORMAL') as any,
+            isNeutered: dto.petIsNeutered ?? false,
+            weightKg: dto.petWeightKg ?? 10.0,
+          }
+        });
+        resolvedPetId = newPet.id;
+      } else if (resolvedInternalClientId) {
+        const newPet = await this.prisma.salonInternalPet.create({
+          data: {
+            salonId,
+            clientId: resolvedInternalClientId,
+            name: dto.petName || 'Animal Manuel',
+            category: (dto.petCategory || 'SMALL') as any,
+            species: dto.petSpecies || 'CHIEN',
+            sex: dto.petSex || 'UNKNOWN',
+            breedId: dto.petBreedId || 'UNKNOWN',
+            coatType: (dto.petCoatType || 'NORMAL') as any,
+            groomingBehavior: (dto.petGroomingBehavior || 'EASY') as any,
+            skinCondition: (dto.petSkinCondition || 'NORMAL') as any,
+            isNeutered: dto.petIsNeutered ?? false,
+            weightKg: dto.petWeightKg ?? null,
+          }
+        });
+        resolvedInternalPetId = newPet.id;
+      }
+    }
+
+    if (resolvedClientId && resolvedPetId) {
+      await Promise.all([
+        this.prisma.salonClient.upsert({
+          where: { salonId_clientId: { salonId, clientId: resolvedClientId } },
+          update: {},
+          create: { salonId, clientId: resolvedClientId }
+        }),
+        this.prisma.salonPet.upsert({
+          where: { salonId_petId: { salonId, petId: resolvedPetId } },
+          update: {},
+          create: { salonId, petId: resolvedPetId }
+        })
+      ]);
+    }
+
+    const start = new Date(dto.slotStart);
+    const end = new Date(dto.slotEnd);
+    const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
+
+    let price = dto.manualPrice;
+    if (price === undefined || price === null) {
+      let petWeight: number | null = null;
+      if (resolvedPetId) {
+        const pet = await this.prisma.pet.findUnique({ where: { id: resolvedPetId } });
+        petWeight = pet?.weightKg ?? null;
+      } else if (resolvedInternalPetId) {
+        const pet = await this.prisma.salonInternalPet.findUnique({ where: { id: resolvedInternalPetId } });
+        petWeight = pet?.weightKg ?? null;
+      }
+
+      if (petWeight === null || petWeight === undefined) {
+        throw new BadRequestException("Le poids de l'animal est obligatoire pour la tarification automatique. Veuillez définir un prix manuel.");
+      }
+
+      try {
+        const baseRules = await this.prisma.baseRule.findMany({ where: { salonId, serviceId: dto.serviceId } });
+        const modifierRules = await this.prisma.modifierRule.findMany({ where: { salonId, isActive: true } });
+        const staff = await this.prisma.staffMember.findUnique({ where: { id: dto.staffId } });
+        const salonConfig = await this.prisma.salonConfig.findUnique({ where: { salonId } });
+
+        if (baseRules.length > 0 && staff) {
+          const rule = findBaseRule(baseRules, dto.serviceId, petWeight);
+          const activeMods = modifierRules.filter(m => {
+            if (m.triggerType === 'KNOTS' && dto.petNotes?.toLowerCase().includes('nœud')) return true;
+            return false;
+          });
+          const theoretical = computeTheoreticalDuration(rule, activeMods);
+          
+          const quote = buildQuote(
+            rule,
+            theoretical,
+            staff,
+            [],
+            activeMods,
+            salonConfig ? {
+              transitionBufferMin: salonConfig.transitionBufferMin,
+              clientDurationMarginPercent: salonConfig.clientDurationMarginPercent
+            } : undefined
+          );
+          price = quote.estimatedPrice;
+        } else {
+          price = 50.0;
+        }
+      } catch (err) {
+        price = 50.0;
+      }
+    }
+
+    return this.prisma.appointment.create({
+      data: {
+        clientId: resolvedClientId,
+        internalClientId: resolvedInternalClientId,
+        salonId,
+        serviceId: dto.serviceId,
+        petId: resolvedPetId,
+        internalPetId: resolvedInternalPetId,
+        staffId: dto.staffId,
+        slotStart: start,
+        slotEnd: end,
+        theoreticalDurationMinutes: durationMinutes,
+        actualDurationMinutes: durationMinutes,
+        clientDurationMax: durationMinutes,
+        tableDurationMinutes: durationMinutes,
+        estimatedPrice: price,
+        priceDisplayMode: 'exact',
+        isManual: true,
+        status: 'CONFIRMED',
+        hasKnotsToday: false,
+        precautions: dto.petNotes,
+      },
+      include: {
+        service: true,
+        client: true,
+        internalClient: true,
+        pet: true,
+        internalPet: true,
+        staff: true
+      }
+    });
+  }
+
   // ─── LECTURE ─────────────────────────────────────
 
   async findAllForClient(clientId: string, page = 1, limit = 20) {
@@ -111,7 +314,44 @@ export class AppointmentsService {
     const [items, total] = await Promise.all([
       this.prisma.appointment.findMany({
         where: { clientId },
-        include: { service: true, salon: true, pet: true, staff: true },
+        select: {
+          id: true,
+          clientId: true,
+          serviceId: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          petId: true,
+          internalPetId: true,
+          internalClientId: true,
+          actualDurationMinutes: true,
+          appliedModifiers: true,
+          clientDurationMax: true,
+          clientFreeNote: true,
+          confirmedAt: true,
+          estimatedPrice: true,
+          expiresAt: true,
+          hasKnotsToday: true,
+          internalNotes: true,
+          lockExpiresAt: true,
+          lockToken: true,
+          isManual: true,
+          precautions: true,
+          priceDisplayDisclaimer: true,
+          priceDisplayMode: true,
+          rejectionReason: true,
+          salonId: true,
+          slotEnd: true,
+          slotStart: true,
+          staffId: true,
+          tableDurationMinutes: true,
+          theoreticalDurationMinutes: true,
+          service: { select: { id: true, name: true } },
+          salon: { select: { id: true, businessName: true, address: true, city: true, postalCode: true, latitude: true, longitude: true } },
+          pet: { select: { id: true, ownerId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+          internalPet: { select: { id: true, clientId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+          staff: { select: { id: true, name: true } },
+        },
         orderBy: { slotStart: 'desc' },
         skip,
         take: limit,
@@ -129,7 +369,45 @@ export class AppointmentsService {
     const [items, total] = await Promise.all([
       this.prisma.appointment.findMany({
         where: { salonId: profile.id },
-        include: { service: true, client: true, pet: true, staff: true },
+        select: {
+          id: true,
+          clientId: true,
+          serviceId: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          petId: true,
+          internalPetId: true,
+          internalClientId: true,
+          actualDurationMinutes: true,
+          appliedModifiers: true,
+          clientDurationMax: true,
+          clientFreeNote: true,
+          confirmedAt: true,
+          estimatedPrice: true,
+          expiresAt: true,
+          hasKnotsToday: true,
+          internalNotes: true,
+          lockExpiresAt: true,
+          lockToken: true,
+          isManual: true,
+          precautions: true,
+          priceDisplayDisclaimer: true,
+          priceDisplayMode: true,
+          rejectionReason: true,
+          salonId: true,
+          slotEnd: true,
+          slotStart: true,
+          staffId: true,
+          tableDurationMinutes: true,
+          theoreticalDurationMinutes: true,
+          service: { select: { id: true, name: true, animalTypes: true } },
+          client: { select: { id: true, firstName: true, lastName: true, email: true, phoneNumber: true } },
+          internalClient: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+          pet: { select: { id: true, ownerId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+          internalPet: { select: { id: true, clientId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+          staff: { select: { id: true, name: true } },
+        },
         orderBy: { slotStart: 'asc' },
         skip,
         take: limit,
@@ -145,7 +423,45 @@ export class AppointmentsService {
 
     return this.prisma.appointment.findMany({
       where: { salonId: profile.id, status: 'PENDING' },
-      include: { service: true, client: true, pet: true, staff: true },
+      select: {
+        id: true,
+        clientId: true,
+        serviceId: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        petId: true,
+        internalPetId: true,
+        internalClientId: true,
+        actualDurationMinutes: true,
+        appliedModifiers: true,
+        clientDurationMax: true,
+        clientFreeNote: true,
+        confirmedAt: true,
+        estimatedPrice: true,
+        expiresAt: true,
+        hasKnotsToday: true,
+        internalNotes: true,
+        lockExpiresAt: true,
+        lockToken: true,
+        isManual: true,
+        precautions: true,
+        priceDisplayDisclaimer: true,
+        priceDisplayMode: true,
+        rejectionReason: true,
+        salonId: true,
+        slotEnd: true,
+        slotStart: true,
+        staffId: true,
+        tableDurationMinutes: true,
+        theoreticalDurationMinutes: true,
+        service: { select: { id: true, name: true, animalTypes: true } },
+        client: { select: { id: true, firstName: true, lastName: true, email: true, phoneNumber: true } },
+        internalClient: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+        pet: { select: { id: true, ownerId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+        internalPet: { select: { id: true, clientId: true, name: true, species: true, breedId: true, birthDate: true, isNeutered: true, sex: true, weightKg: true, category: true, coatType: true, groomingBehavior: true, skinCondition: true } },
+        staff: { select: { id: true, name: true } },
+      },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -153,9 +469,30 @@ export class AppointmentsService {
   async findOne(id: string) {
     const apt = await this.prisma.appointment.findUnique({
       where: { id },
-      include: { service: true, salon: true, client: true, pet: true, staff: true },
+      include: { service: true, salon: true, client: true, pet: true, staff: true, internalClient: true, internalPet: true },
     });
     if (!apt) throw new NotFoundException('RDV non trouvé');
+    return apt;
+  }
+
+  async findOneSecured(userId: string, userRole: string, id: string) {
+    const apt = await this.findOne(id);
+
+    if (userRole === 'ADMIN') {
+      return apt;
+    }
+
+    if (userRole === 'CLIENT' && apt.clientId !== userId) {
+      throw new ForbiddenException('Accès non autorisé à ce rendez-vous');
+    }
+
+    if (userRole === 'PROVIDER') {
+      const profile = await this.prisma.providerProfile.findUnique({ where: { userId } });
+      if (!profile || apt.salonId !== profile.id) {
+        throw new ForbiddenException('Accès non autorisé à ce rendez-vous');
+      }
+    }
+
     return apt;
   }
 
@@ -201,14 +538,161 @@ export class AppointmentsService {
 
   // ─── EXPIRATION AUTO ────────────────────────────
 
+  @Cron('*/10 * * * *') // S'exécute toutes les 10 minutes
   async expirePendingAppointments() {
+    this.logger.log('[Cron] Vérification des rendez-vous en attente expirés...');
     const expired = await this.prisma.appointment.updateMany({
       where: {
         status: 'PENDING',
         expiresAt: { lt: new Date() },
       },
-      data: { status: 'CANCELLED' },
+      data: {
+        status: 'CANCELLED',
+        rejectionReason: 'Expiré : Le salon n\'a pas validé la demande dans le délai de 24h.',
+      },
     });
+    if (expired.count > 0) {
+      this.logger.log(`[Cron] Expiration automatique réussie : ${expired.count} rendez-vous expirés ont été annulés.`);
+    }
     return { expiredCount: expired.count };
+  }
+
+  // ─── STATISTIQUES ──────────────────────────────
+
+  async getStats(userId: string, period: 'today' | 'week' | 'month') {
+    const profile = await this.prisma.providerProfile.findUnique({ where: { userId } });
+    if (!profile) throw new ForbiddenException('Profil prestataire requis');
+
+    const salonId = profile.id;
+    const now = dayjs();
+    let startDate: Date;
+    let endDate: Date;
+
+    switch (period) {
+      case 'today':
+        startDate = now.startOf('day').toDate();
+        endDate = now.endOf('day').toDate();
+        break;
+      case 'week':
+        startDate = now.startOf('week').toDate();
+        endDate = now.endOf('week').toDate();
+        break;
+      case 'month':
+        startDate = now.startOf('month').toDate();
+        endDate = now.endOf('month').toDate();
+        break;
+    }
+
+    const dateFilter = { salonId, slotStart: { gte: startDate, lte: endDate } };
+
+    const [
+      totalAppointments,
+      statusCounts,
+      revenueResult,
+      dailyCounts,
+      serviceCounts,
+      staffCounts,
+    ] = await Promise.all([
+      // 1. Total RDV
+      this.prisma.appointment.count({ where: dateFilter }),
+
+      // 2. Comptage par statut
+      this.prisma.appointment.groupBy({
+        by: ['status'],
+        where: dateFilter,
+        _count: { id: true },
+      }),
+
+      // 3. CA (COMPLETED + CONFIRMED)
+      this.prisma.appointment.aggregate({
+        where: {
+          ...dateFilter,
+          status: { in: ['COMPLETED', 'CONFIRMED'] },
+        },
+        _sum: { estimatedPrice: true },
+      }),
+
+      // 4. Comptage par jour (raw query pour tronquer au jour)
+      this.prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+        SELECT DATE("slotStart") as day, COUNT(*)::bigint as count
+        FROM appointments
+        WHERE "salonId" = ${salonId}
+          AND "slotStart" >= ${startDate}
+          AND "slotStart" <= ${endDate}
+        GROUP BY DATE("slotStart")
+        ORDER BY day ASC
+      `,
+
+      // 5. Comptage par service
+      this.prisma.appointment.groupBy({
+        by: ['serviceId'],
+        where: dateFilter,
+        _count: { id: true },
+      }),
+
+      // 6. Comptage par collaborateur
+      this.prisma.appointment.groupBy({
+        by: ['staffId'],
+        where: dateFilter,
+        _count: { id: true },
+      }),
+    ]);
+
+    // Résoudre les noms de services
+    const serviceIds = serviceCounts.map((s) => s.serviceId);
+    const services = serviceIds.length > 0
+      ? await this.prisma.service.findMany({
+          where: { id: { in: serviceIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const serviceMap = new Map(services.map((s) => [s.id, s.name]));
+
+    // Résoudre les noms de collaborateurs
+    const staffIds = staffCounts.map((s) => s.staffId);
+    const staffMembers = staffIds.length > 0
+      ? await this.prisma.staffMember.findMany({
+          where: { id: { in: staffIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const staffMap = new Map(staffMembers.map((s) => [s.id, s.name]));
+
+    // Extraire les comptages par statut
+    const getStatusCount = (status: string) =>
+      statusCounts.find((s) => s.status === status)?._count?.id ?? 0;
+
+    const completedAppointments = getStatusCount('COMPLETED');
+    const cancelledAppointments = getStatusCount('CANCELLED');
+    const noShowAppointments = getStatusCount('NO_SHOW');
+    const cancellationRate = totalAppointments > 0
+      ? Math.round((cancelledAppointments / totalAppointments) * 10000) / 100
+      : 0;
+
+    return {
+      period,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      totalAppointments,
+      completedAppointments,
+      cancelledAppointments,
+      noShowAppointments,
+      cancellationRate,
+      revenue: revenueResult._sum.estimatedPrice ?? 0,
+      appointmentsByDay: dailyCounts.map((d) => ({
+        date: dayjs(d.day).format('YYYY-MM-DD'),
+        count: Number(d.count),
+      })),
+      appointmentsByService: serviceCounts.map((s) => ({
+        serviceId: s.serviceId,
+        serviceName: serviceMap.get(s.serviceId) ?? 'Service inconnu',
+        count: s._count.id,
+      })),
+      appointmentsByStaff: staffCounts.map((s) => ({
+        staffId: s.staffId,
+        staffName: staffMap.get(s.staffId) ?? 'Collaborateur inconnu',
+        count: s._count.id,
+      })),
+    };
   }
 }

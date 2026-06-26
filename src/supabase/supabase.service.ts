@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 import * as jwt from 'jsonwebtoken';
+import * as ws from 'ws';
 
 @Injectable()
 export class SupabaseService {
@@ -18,7 +19,14 @@ export class SupabaseService {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    this.supabase = createClient(url, key);
+    this.supabase = createClient(url, key, {
+      auth: {
+        persistSession: false,
+      },
+      realtime: {
+        transport: ws as any,
+      },
+    });
   }
 
   getClient(): SupabaseClient {
@@ -32,7 +40,7 @@ export class SupabaseService {
 
     if (error) {
       this.logger.warn(`Token validation failed: ${error.message}`);
-      console.log('SupabaseService: Full error:', error);
+      this.logger.debug(`SupabaseService: Full error: ${JSON.stringify(error)}`);
       return null;
     }
 

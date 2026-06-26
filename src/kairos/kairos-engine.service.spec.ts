@@ -9,12 +9,15 @@ describe('KairosEngineService', () => {
   let prisma: PrismaService;
 
   beforeEach(async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2024-01-01T08:00:00Z')); // Monday 8am
+
     // We mock Prisma Service to track the number of calls
     const mockPrisma = {
-      salonConfig: { findUnique: jest.fn().mockResolvedValue({ concurrentLimits: '{"SMALL": 2}', planningHorizonDays: 1, slotGranularityMin: 30 }) },
+      salonConfig: { findUnique: jest.fn().mockResolvedValue({ groomingTables: ['LARGE', 'SMALL', 'SMALL'], planningHorizonDays: 1, slotGranularityMin: 30 }) },
       user: { findUnique: jest.fn().mockResolvedValue({ isBlocked: false }) },
-      staffMember: { findMany: jest.fn().mockResolvedValue([{ id: 'staff1', role: 'PROFESSIONAL', speedIndex: 1.0, allowedServiceIds: ['srv1'], weeklySchedule: '[]', leaves: '[]' }]) },
-      workingHours: { findMany: jest.fn().mockResolvedValue([{ dayOfWeek: new Date().getDay(), startTime: '09:00', endTime: '18:00' }]) },
+      staffMember: { findMany: jest.fn().mockResolvedValue([{ id: 'staff1', role: 'PROFESSIONAL', speedIndex: 1.0, allowedServiceIds: ['srv1'], weeklySchedule: '[]', leaves: '[]', followSalonSchedule: true }]) },
+      workingHours: { findMany: jest.fn().mockResolvedValue([{ dayOfWeek: 1, startTime: '09:00', endTime: '18:00' }]) },
       providerAbsence: { findMany: jest.fn().mockResolvedValue([]) },
       appointment: { findMany: jest.fn().mockResolvedValue([]) },
       manualBlock: { findMany: jest.fn().mockResolvedValue([]) },
@@ -32,6 +35,10 @@ describe('KairosEngineService', () => {
 
     service = module.get<KairosEngineService>(KairosEngineService);
     prisma = module.get<PrismaService>(PrismaService);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('should be defined', () => {
@@ -65,5 +72,53 @@ describe('KairosEngineService', () => {
     // Ensure we generated slots
     expect(result.length).toBeGreaterThan(0); // Because horizon is 1 day and today is open
     expect(result[0].slots[0].quote.theoreticalDurationMinutes).toBe(60);
+  });
+
+  it('should restrict slots for a staff member with a custom schedule', async () => {
+    const today = 1; // Monday
+    (prisma.staffMember.findMany as jest.Mock).mockResolvedValue([{
+      id: 'staff1', role: 'PROFESSIONAL', speedIndex: 1.0, allowedServiceIds: ['srv1'], 
+      weeklySchedule: JSON.stringify([{ dayOfWeek: today, startTime: '09:00', endTime: '12:00' }]), 
+      leaves: '[]', followSalonSchedule: false 
+    }]);
+
+    const animal: AnimalData = {
+      id: 'pet1', species: 'dog', birthDate: new Date('2020-01-01'),
+      isNeutered: true, weightKg: 10, category: AnimalCategory.SMALL,
+      coatType: CoatType.SHORT, groomingBehavior: GroomingBehavior.EASY,
+      skinCondition: SkinCondition.NORMAL, lastGroomedAt: new Date()
+    };
+
+    const result = await service.generate({ clientId: 'c1', salonId: 'salon1', serviceId: 'srv1', animal });
+    
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0].slots.length).toBeGreaterThan(0);
+    
+    // Custom staff finishes at 12:00, slot duration is 60min, so last slot is 11:00
+    const lastSlot = result[0].slots[result[0].slots.length - 1];
+    expect(lastSlot.start.getHours()).toBeLessThanOrEqual(11);
+  });
+
+  it('should return no slots for a day if custom schedule does not include it', async () => {
+    (prisma.staffMember.findMany as jest.Mock).mockResolvedValue([{
+      id: 'staff1', role: 'PROFESSIONAL', speedIndex: 1.0, allowedServiceIds: ['srv1'], 
+      weeklySchedule: JSON.stringify([]), // Empty schedule = no working days
+      leaves: '[]', followSalonSchedule: false 
+    }]);
+
+    const animal: AnimalData = {
+      id: 'pet1', species: 'dog', birthDate: new Date('2020-01-01'),
+      isNeutered: true, weightKg: 10, category: AnimalCategory.SMALL,
+      coatType: CoatType.SHORT, groomingBehavior: GroomingBehavior.EASY,
+      skinCondition: SkinCondition.NORMAL, lastGroomedAt: new Date()
+    };
+
+    const result = await service.generate({ clientId: 'c1', salonId: 'salon1', serviceId: 'srv1', animal });
+    
+    if (result.length > 0) {
+      expect(result[0].slots.length).toBe(0);
+    } else {
+      expect(result.length).toBe(0);
+    }
   });
 });

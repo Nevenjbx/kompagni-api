@@ -25,6 +25,7 @@ model User {
   pets              Pet[]
   providerProfile   ProviderProfile?
   favoriteProviders ProviderProfile[] @relation("UserFavorites")
+  salonClients      SalonClient[]
 
   @@map("users")
 }
@@ -49,13 +50,15 @@ model Pet {
   refinements      AnimalRefinement[]
   appointments     Appointment[]
   owner            User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  salonPets        SalonPet[]
 
+  @@index([ownerId])
   @@map("pets")
 }
 
 model ProviderProfile {
-  id               String            @id @default(uuid())
-  userId           String            @unique
+  id               String                @id @default(uuid())
+  userId           String                @unique
   businessName     String
   description      String?
   address          String
@@ -64,36 +67,43 @@ model ProviderProfile {
   latitude         Float?
   longitude        Float?
   tags             String[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
   appointments     Appointment[]
   baseRules        BaseRule[]
   manualBlocks     ManualBlock[]
   modifierRules    ModifierRule[]
   priceAdjustments PriceAdjustment[]
   absences         ProviderAbsence[]
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   salonConfig      SalonConfig?
   services         Service[]
   staff            StaffMember[]
   workingHours     WorkingHours[]
-  favoritedBy      User[]            @relation("UserFavorites")
+  favoritedBy      User[]                @relation("UserFavorites")
+  salonClients     SalonClient[]
+  salonPets        SalonPet[]
+  internalClients  SalonInternalClient[]
+  internalPets     SalonInternalPet[]
 
   @@map("provider_profiles")
 }
 
 model SalonConfig {
-  id                  String          @id @default(uuid())
-  salonId             String          @unique
-  validationMode      ValidationMode  @default(AUTO)
-  pendingExpiryHours  Int             @default(24)
-  slotGranularityMin  Int             @default(30)
-  planningHorizonDays Int             @default(14)
-  concurrentLimits    Json            @default("{\"CAT\": 1, \"NAC\": 1, \"GIANT\": 1, \"LARGE\": 1, \"SMALL\": 2}")
-  cancelDeadlineHours Int             @default(24)
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  salon               ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  id                          String          @id @default(uuid())
+  salonId                     String          @unique
+  validationMode              ValidationMode  @default(AUTO)
+  pendingExpiryHours          Int             @default(24)
+  slotGranularityMin          Int             @default(30)
+  planningHorizonDays         Int             @default(14)
+  groomingTables              String[]        @default(["LARGE", "SMALL"])
+  cancelDeadlineHours         Int             @default(24)
+  transitionBufferMin         Int             @default(15)
+  clientDurationMarginPercent Float           @default(10)
+  breakBetweenAppointmentsMin Int             @default(0)
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+  salon                       ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
 
   @@map("salon_configs")
 }
@@ -107,11 +117,13 @@ model StaffMember {
   allowedServiceIds String[]
   weeklySchedule    Json            @default("[]")
   leaves            Json            @default("[]")
+  followSalonSchedule Boolean       @default(true)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   appointments      Appointment[]
   salon             ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
 
+  @@index([salonId])
   @@map("staff_members")
 }
 
@@ -127,6 +139,7 @@ model Service {
   baseRules    BaseRule[]
   provider     ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("services")
 }
 
@@ -177,6 +190,7 @@ model WorkingHours {
   updatedAt      DateTime        @updatedAt
   provider       ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId])
   @@map("working_hours")
 }
 
@@ -190,6 +204,7 @@ model ProviderAbsence {
   updatedAt  DateTime        @updatedAt
   provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
+  @@index([providerId, startDate])
   @@map("provider_absences")
 }
 
@@ -207,6 +222,7 @@ model ManualBlock {
   createdAt     DateTime        @default(now())
   salon         ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
 
+  @@index([salonId, date])
   @@map("manual_blocks")
 }
 
@@ -224,13 +240,15 @@ model SlotLock {
 }
 
 model Appointment {
-  id                         String             @id @default(uuid())
-  clientId                   String
+  id                         String               @id @default(uuid())
+  clientId                   String?
   serviceId                  String
-  status                     AppointmentStatus  @default(PENDING)
-  createdAt                  DateTime           @default(now())
-  updatedAt                  DateTime           @updatedAt
-  petId                      String
+  status                     AppointmentStatus    @default(PENDING)
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+  petId                      String?
+  internalClientId           String?
+  internalPetId              String?
   actualDurationMinutes      Int
   appliedModifiers           String[]
   clientDurationMax          Int
@@ -238,10 +256,11 @@ model Appointment {
   confirmedAt                DateTime?
   estimatedPrice             Float
   expiresAt                  DateTime?
-  hasKnotsToday              Boolean            @default(false)
+  hasKnotsToday              Boolean              @default(false)
   internalNotes              String?
   lockExpiresAt              DateTime?
   lockToken                  String?
+  isManual                   Boolean              @default(false)
   precautions                String?
   priceDisplayDisclaimer     String?
   priceDisplayMode           String
@@ -253,17 +272,27 @@ model Appointment {
   tableDurationMinutes       Int
   theoreticalDurationMinutes Int
   refinements                AnimalRefinement[]
-  client                     User               @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  pet                        Pet                @relation(fields: [petId], references: [id])
-  salon                      ProviderProfile    @relation(fields: [salonId], references: [id], onDelete: Cascade)
-  service                    Service            @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  staff                      StaffMember        @relation(fields: [staffId], references: [id])
+  client                     User?                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  pet                        Pet?                 @relation(fields: [petId], references: [id])
+  internalClient             SalonInternalClient? @relation(fields: [internalClientId], references: [id], onDelete: Cascade)
+  internalPet                SalonInternalPet?    @relation(fields: [internalPetId], references: [id])
+  salon                      ProviderProfile      @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  service                    Service              @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  staff                      StaffMember          @relation(fields: [staffId], references: [id])
   priceAdjustments           PriceAdjustment[]
 
   @@index([salonId, slotStart])
   @@index([clientId, slotStart])
   @@index([status])
   @@index([staffId, slotStart])
+  @@index([salonId, clientId, slotStart])
+  @@index([salonId, petId, slotStart])
+  @@index([salonId, internalClientId, slotStart])
+  @@index([salonId, internalPetId, slotStart])
+  @@index([petId])
+  @@index([internalClientId])
+  @@index([internalPetId])
+  @@index([serviceId])
   @@map("appointments")
 }
 
@@ -281,6 +310,8 @@ model AnimalRefinement {
   animal           Pet               @relation(fields: [animalId], references: [id], onDelete: Cascade)
   appointment      Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
+  @@index([animalId])
+  @@index([appointmentId])
   @@map("animal_refinements")
 }
 
@@ -295,7 +326,39 @@ model PriceAdjustment {
   appointment   Appointment     @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   salon         ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
 
+  @@index([appointmentId])
+  @@index([salonId])
   @@map("price_adjustments")
+}
+
+model SalonClient {
+  id        String   @id @default(uuid())
+  salonId   String
+  clientId  String
+  createdAt DateTime @default(now())
+
+  salon  ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  client User            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([salonId, clientId])
+  @@index([salonId])
+  @@index([clientId])
+  @@map("salon_clients")
+}
+
+model SalonPet {
+  id        String   @id @default(uuid())
+  salonId   String
+  petId     String
+  createdAt DateTime @default(now())
+
+  salon ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  pet   Pet             @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@unique([salonId, petId])
+  @@index([salonId])
+  @@index([petId])
+  @@map("salon_pets")
 }
 
 model WaitlistLead {
@@ -372,4 +435,51 @@ enum BlockScope {
 enum ValidationMode {
   AUTO
   MANUAL
+}
+
+model SalonInternalClient {
+  id        String   @id @default(uuid())
+  salonId   String
+  firstName String
+  lastName  String
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  salon        ProviderProfile    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  pets         SalonInternalPet[]
+  appointments Appointment[]
+
+  @@index([salonId])
+  @@index([email])
+  @@map("salon_internal_clients")
+}
+
+model SalonInternalPet {
+  id               String           @id @default(uuid())
+  salonId          String
+  clientId         String
+  name             String
+  species          String
+  breedId          String
+  category         AnimalCategory
+  coatType         CoatType
+  groomingBehavior GroomingBehavior
+  weightKg         Float?
+  birthDate        DateTime?
+  sex              String
+  isNeutered       Boolean          @default(false)
+  skinCondition    SkinCondition    @default(NORMAL)
+  lastGroomedAt    DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  salon        ProviderProfile     @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  client       SalonInternalClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@index([salonId])
+  @@index([clientId])
+  @@map("salon_internal_pets")
 }

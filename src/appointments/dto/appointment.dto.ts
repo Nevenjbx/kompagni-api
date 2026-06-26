@@ -5,9 +5,50 @@ import {
   IsEnum,
   IsDateString,
   IsBoolean,
+  ValidateNested,
+  IsNumber,
+  IsArray,
+  IsIn,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { AppointmentStatus } from '@prisma/client';
+import { Type } from 'class-transformer';
+
+export class QuoteResultDto {
+  @ApiProperty()
+  @IsNumber()
+  theoreticalDurationMinutes: number;
+
+  @ApiProperty()
+  @IsNumber()
+  actualDurationMinutes: number;
+
+  @ApiProperty()
+  @IsNumber()
+  clientDurationMax: number;
+
+  @ApiProperty()
+  @IsNumber()
+  tableDurationMinutes: number;
+
+  @ApiProperty()
+  @IsNumber()
+  estimatedPrice: number;
+
+  @ApiProperty({ enum: ['exact', 'estimate'] })
+  @IsEnum(['exact', 'estimate'])
+  priceDisplayMode: 'exact' | 'estimate';
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  priceDisplayDisclaimer?: string | null;
+
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  appliedModifiers: string[];
+}
 
 export class CreateAppointmentDto {
   @ApiProperty()
@@ -32,9 +73,11 @@ export class CreateAppointmentDto {
   @IsNotEmpty()
   slotStart: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: QuoteResultDto })
+  @ValidateNested()
+  @Type(() => QuoteResultDto)
   @IsNotEmpty()
-  quoteResult: any; // Using any for DTO validation simplification, it maps to QuoteResult from engine
+  quoteResult: QuoteResultDto;
 
   // Layer 3 fields
   @ApiProperty()
@@ -81,6 +124,10 @@ export class GetSlotsDto {
   @IsNotEmpty()
   animalId: string;
 
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  offerType?: string;
 }
 
 export class LockSlotDto {
@@ -111,4 +158,135 @@ export class UnlockSlotDto {
   @IsNotEmpty()
   lockToken: string;
 }
+
+export class GetStatsDto {
+  @ApiProperty({ enum: ['today', 'week', 'month'], description: 'Période pour les statistiques' })
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['today', 'week', 'month'])
+  period: 'today' | 'week' | 'month';
+}
+
+export class CreateManualAppointmentDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  serviceId: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  internalClientId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  internalPetId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientFirstName?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientLastName?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientEmail?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientPhoneNumber?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petName?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petCategory?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petSpecies?: string;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  petWeightKg?: number;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petNotes?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petSex?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petBreedId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petCoatType?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petGroomingBehavior?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  petSkinCondition?: string;
+
+  @ApiProperty({ required: false })
+  @IsBoolean()
+  @IsOptional()
+  petIsNeutered?: boolean;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  staffId: string;
+
+  @ApiProperty()
+  @IsDateString()
+  @IsNotEmpty()
+  slotStart: string;
+
+  @ApiProperty()
+  @IsDateString()
+  @IsNotEmpty()
+  slotEnd: string;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  manualPrice?: number;
+}
+
 
