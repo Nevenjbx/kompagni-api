@@ -67,12 +67,14 @@ model ProviderProfile {
   latitude         Float?
   longitude        Float?
   tags             String[]
+  sectorTemplate   String                @default("GROOMER")
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
   appointments     Appointment[]
   baseRules        BaseRule[]
   manualBlocks     ManualBlock[]
   modifierRules    ModifierRule[]
+  salonRules       SalonRule[]
   priceAdjustments PriceAdjustment[]
   absences         ProviderAbsence[]
   user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -101,6 +103,18 @@ model SalonConfig {
   transitionBufferMin         Int             @default(15)
   clientDurationMarginPercent Float           @default(10)
   breakBetweenAppointmentsMin Int             @default(0)
+
+  // ── Supervision (mode formation) ──
+  // Quand un "supervisee" (ex: apprenti) prend un RDV, un "supervisor" (ex: pro)
+  // doit être libre pour l'encadrer. Un supervisor peut encadrer
+  // maxConcurrentSupervisions apprentis en même temps.
+  supervisionEnabled                  Boolean  @default(false)
+  supervisorRole                      String   @default("PROFESSIONAL")
+  superviseeRole                      String   @default("APPRENTICE")
+  maxConcurrentSupervisions           Int      @default(3)
+  blockSupervisorWhenApprenticeBooked Boolean  @default(true)
+  prioritizeApprenticeSlots           Boolean  @default(false)
+
   createdAt                   DateTime        @default(now())
   updatedAt                   DateTime        @updatedAt
   salon                       ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
@@ -128,16 +142,19 @@ model StaffMember {
 }
 
 model Service {
-  id           String          @id @default(uuid())
-  providerId   String
-  name         String
-  description  String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  animalTypes  String[]
-  appointments Appointment[]
-  baseRules    BaseRule[]
-  provider     ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  id                String          @id @default(uuid())
+  providerId        String
+  name              String
+  description       String?
+  slicingAttribute  String          @default("weightKg")
+  icon              String?
+  color             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  animalTypes       String[]
+  appointments      Appointment[]
+  baseRules         BaseRule[]
+  provider          ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@index([providerId])
   @@map("services")
@@ -482,4 +499,30 @@ model SalonInternalPet {
   @@index([salonId])
   @@index([clientId])
   @@map("salon_internal_pets")
+}
+
+model SalonRule {
+  id                String          @id @default(uuid())
+  salonId           String
+  name              String
+  description       String?
+  isActive          Boolean         @default(true)
+  priority          Int             @default(0)
+
+  // Condition (SI)
+  conditionField    String          // "animal.weightKg", "staff.role", "appointment.hasKnots"
+  conditionOperator String          // "==" | ">" | "<" | ">=" | "<=" | "!="
+  conditionValue    String          // "true", "4", "APPRENTICE"
+
+  // Effet (ALORS)
+  effectType        String          // "DURATION" | "PRICE" | "SCHEDULING"
+  effectAction      String          // "ADD" | "MULTIPLY" | "BLOCK_RESOURCE"
+  effectValue       Float           // +30 (min) | 0.90 (×) | -10 (€)
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  salon             ProviderProfile @relation(fields: [salonId], references: [id], onDelete: Cascade)
+
+  @@index([salonId])
+  @@map("salon_rules")
 }

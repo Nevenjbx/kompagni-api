@@ -4,6 +4,7 @@ import {
   IsInt,
   IsNumber,
   IsArray,
+  IsBoolean,
   IsString,
   Min,
   Max,
@@ -35,15 +36,37 @@ export class UpdateSalonConfigDto {
   @IsOptional()
   planningHorizonDays?: number;
 
-  @ApiProperty({ required: false, description: 'JSON array [{name, start, end}]' })
+  @ApiProperty({ required: false, description: 'Active la supervision (mode formation)' })
+  @IsBoolean()
   @IsOptional()
-  formationBlocks?: any;
+  supervisionEnabled?: boolean;
 
-  @ApiProperty({ required: false })
-  @IsNumber()
-  @Min(0)
+  @ApiProperty({ required: false, description: 'Rôle qui supervise (ex: PROFESSIONAL)' })
+  @IsString()
   @IsOptional()
-  formationDiscount?: number;
+  supervisorRole?: string;
+
+  @ApiProperty({ required: false, description: 'Rôle supervisé (ex: APPRENTICE)' })
+  @IsString()
+  @IsOptional()
+  superviseeRole?: string;
+
+  @ApiProperty({ required: false, description: 'Nombre max d\'apprentis encadrés simultanément par un superviseur' })
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  @IsOptional()
+  maxConcurrentSupervisions?: number;
+
+  @ApiProperty({ required: false, description: 'Bloque un pro sur un créneau si des apprentis y ont déjà un RDV et qu\'il est nécessaire comme superviseur' })
+  @IsBoolean()
+  @IsOptional()
+  blockSupervisorWhenApprenticeBooked?: boolean;
+
+  @ApiProperty({ required: false, description: 'Kairos favorise l\'attribution des RDV aux apprentis en priorité' })
+  @IsBoolean()
+  @IsOptional()
+  prioritizeApprenticeSlots?: boolean;
 
   @ApiProperty({ required: false })
   @IsInt()

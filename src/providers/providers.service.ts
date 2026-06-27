@@ -36,7 +36,11 @@ export class ProvidersService {
     const profile = await this.prisma.providerProfile.findUnique({
       where: { userId },
       include: {
-        services: true,
+        services: {
+          include: {
+            baseRules: true,
+          },
+        },
         workingHours: true,
       },
     });

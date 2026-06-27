@@ -22,6 +22,8 @@ import { RulesModule } from './rules/rules.module';
 import { PriceAdjustmentsModule } from './price-adjustments/price-adjustments.module';
 import { KairosModule } from './kairos/kairos.module';
 import { DirectoryModule } from './directory/directory.module';
+import { SalonRulesModule } from './salon-rules/salon-rules.module';
+import { SectorTemplatesModule } from './sector-templates/sector-templates.module';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { DirectoryModule } from './directory/directory.module';
     PriceAdjustmentsModule,
     KairosModule,
     DirectoryModule,
+    SalonRulesModule,
+    SectorTemplatesModule,
   ],
   controllers: [AppController],
   providers: [

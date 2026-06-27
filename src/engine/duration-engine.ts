@@ -1,5 +1,6 @@
 import { BaseRuleData, ModifierRuleData, StaffData, QuoteResult, MissingRuleException } from './types';
 import { computePrice } from './price-engine';
+import { RuleEffect, applyDurationEffects, applyPriceEffects } from './rule-evaluator';
 
 /** Default values — used as fallback when SalonParams are not provided */
 export const DEFAULT_TRANSITION_BUFFER_MIN = 15;
@@ -26,6 +27,8 @@ export function findBaseRule(
   }
   return match;
 }
+
+// ─── Legacy: ModifierRule-based computation (kept for backward compatibility) ───
 
 export function computeTheoreticalDuration(
   baseRule: BaseRuleData,
@@ -75,3 +78,52 @@ export function buildQuote(
   };
 }
 
+// ─── New: RuleEffect-based computation (used with SalonRules) ───
+
+/**
+ * Computes theoretical duration using the new generic RuleEffect system.
+ */
+export function computeTheoreticalDurationV2(
+  baseRule: BaseRuleData,
+  durationEffects: RuleEffect[],
+): number {
+  return applyDurationEffects(baseRule.baseDurationMinutes, durationEffects);
+}
+
+/**
+ * Builds a quote using the new RuleEffect system.
+ * Duration effects should already be applied to produce theoreticalDuration.
+ */
+export function buildQuoteV2(
+  baseRule: BaseRuleData,
+  theoreticalDuration: number,
+  staff: StaffData,
+  priceEffects: RuleEffect[],
+  salonParams?: SalonParams,
+  durationEffects: RuleEffect[] = [],
+): QuoteResult {
+  const transitionBuffer = salonParams?.transitionBufferMin ?? DEFAULT_TRANSITION_BUFFER_MIN;
+  const marginPercent = salonParams?.clientDurationMarginPercent ?? DEFAULT_CLIENT_DURATION_MARGIN_PERCENT;
+  const marginMultiplier = 1 + (marginPercent / 100);
+
+  const actualDurationMinutes = Math.round(theoreticalDuration * staff.speedIndex);
+  const clientDurationMax = Math.round(actualDurationMinutes * marginMultiplier);
+  const tableDurationMinutes = clientDurationMax + transitionBuffer;
+  
+  const baseEstimatedPrice = computePrice(baseRule, theoreticalDuration);
+  const finalPrice = applyPriceEffects(baseEstimatedPrice, priceEffects);
+  
+  const isFixed = baseRule.includedMinutes >= 9999;
+
+  return {
+    theoreticalDurationMinutes: theoreticalDuration,
+    actualDurationMinutes,
+    clientDurationMax,
+    tableDurationMinutes,
+    estimatedPrice: finalPrice,
+    priceDisplayMode: isFixed ? 'exact' : 'estimate',
+    priceDisplayDisclaimer: isFixed ? null : 'Prix final à confirmer selon temps réel',
+    // Audit trail complet : règles ayant modifié la durée ET le prix (sans doublon).
+    appliedModifiers: [...new Set([...durationEffects, ...priceEffects].map(e => e.ruleName))],
+  };
+}

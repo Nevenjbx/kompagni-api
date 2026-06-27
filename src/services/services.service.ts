@@ -15,23 +15,49 @@ export class ServicesService {
     const provider = await this.prisma.providerProfile.findUnique({ where: { userId } });
     if (!provider) throw new ForbiddenException('Profil prestataire requis');
 
-    return this.prisma.service.create({
+    const { basePrice, baseDurationMinutes, ...serviceData } = dto;
+
+    const service = await this.prisma.service.create({
       data: {
-        ...dto,
+        ...serviceData,
         provider: { connect: { id: provider.id } },
       },
     });
+
+    // Créer une règle de base par défaut (0-9999 kg) si spécifié
+    if (basePrice !== undefined || baseDurationMinutes !== undefined) {
+      await this.prisma.baseRule.create({
+        data: {
+          salonId: provider.id,
+          serviceId: service.id,
+          minWeightKg: 0,
+          maxWeightKg: 9999,
+          basePrice: basePrice ?? 0,
+          baseDurationMinutes: baseDurationMinutes ?? 60,
+          includedMinutes: 9999,
+          overtimeRatePerMin: 0,
+        },
+      });
+    }
+
+    return this.findOne(service.id);
   }
 
   async findAll(providerId?: string) {
     if (!providerId) {
       throw new BadRequestException('Le paramètre providerId est obligatoire');
     }
-    return this.prisma.service.findMany({ where: { providerId } });
+    return this.prisma.service.findMany({
+      where: { providerId },
+      include: { baseRules: true },
+    });
   }
 
   async findOne(id: string) {
-    const service = await this.prisma.service.findUnique({ where: { id } });
+    const service = await this.prisma.service.findUnique({
+      where: { id },
+      include: { baseRules: true },
+    });
     if (!service) throw new NotFoundException('Service non trouvé');
     return service;
   }
@@ -42,6 +68,7 @@ export class ServicesService {
 
     return this.prisma.service.findMany({
       where: { providerId: salonId, animalTypes: { has: animal.species } },
+      include: { baseRules: true },
     });
   }
 

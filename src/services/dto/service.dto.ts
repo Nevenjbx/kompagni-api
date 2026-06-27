@@ -24,6 +24,26 @@ export class CreateServiceDto {
   @ApiProperty({ description: 'Array of species supported by this service', isArray: true })
   @IsArray()
   animalTypes: string[];
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  icon?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  color?: string;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  basePrice?: number;
+
+  @ApiProperty({ required: false })
+  @IsInt()
+  @IsOptional()
+  baseDurationMinutes?: number;
 }
 
 export class UpdateServiceDto {
@@ -41,4 +61,14 @@ export class UpdateServiceDto {
   @IsArray()
   @IsOptional()
   animalTypes?: string[];
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  icon?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  color?: string;
 }

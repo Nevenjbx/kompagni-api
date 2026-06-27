@@ -19,10 +19,11 @@ describe('KairosEngineService', () => {
       staffMember: { findMany: jest.fn().mockResolvedValue([{ id: 'staff1', role: 'PROFESSIONAL', speedIndex: 1.0, allowedServiceIds: ['srv1'], weeklySchedule: '[]', leaves: '[]', followSalonSchedule: true }]) },
       workingHours: { findMany: jest.fn().mockResolvedValue([{ dayOfWeek: 1, startTime: '09:00', endTime: '18:00' }]) },
       providerAbsence: { findMany: jest.fn().mockResolvedValue([]) },
-      appointment: { findMany: jest.fn().mockResolvedValue([]) },
+      appointment: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
       manualBlock: { findMany: jest.fn().mockResolvedValue([]) },
       baseRule: { findMany: jest.fn().mockResolvedValue([{ salonId: 'salon1', serviceId: 'srv1', minWeightKg: 0, maxWeightKg: 9999, baseDurationMinutes: 60, basePrice: 50, includedMinutes: 9999, overtimeRatePerMin: 0 }]) },
       modifierRule: { findMany: jest.fn().mockResolvedValue([]) },
+      salonRule: { findMany: jest.fn().mockResolvedValue([]) },
       animalRefinement: { findFirst: jest.fn().mockResolvedValue(null) },
     };
 
@@ -59,7 +60,7 @@ describe('KairosEngineService', () => {
     expect(prisma.salonConfig.findUnique).toHaveBeenCalledTimes(1);
     expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
 
-    // Bulk fetch phase (8 queries in parallel)
+    // Bulk fetch phase (8 parallel queries)
     expect(prisma.staffMember.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.workingHours.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.providerAbsence.findMany).toHaveBeenCalledTimes(1);
@@ -67,6 +68,7 @@ describe('KairosEngineService', () => {
     expect(prisma.manualBlock.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.baseRule.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.modifierRule.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.salonRule.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.animalRefinement.findFirst).toHaveBeenCalledTimes(1);
     
     // Ensure we generated slots
