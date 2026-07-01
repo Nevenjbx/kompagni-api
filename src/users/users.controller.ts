@@ -78,6 +78,13 @@ export class UsersController {
     return this.usersService.updateUser(req.user.id, body);
   }
 
+  @Delete('me')
+  @ApiOperation({ summary: 'Delete current user account' })
+  async deleteMe(@Req() req: AuthenticatedRequest) {
+    await this.usersService.deleteUser(req.user.id);
+    return { success: true };
+  }
+
   @Post('favorites/:providerId')
   @ApiOperation({ summary: 'Add a provider to favorites' })
   async addFavorite(
