@@ -27,9 +27,8 @@ export class UsersController {
   @Get('check-email')
   @ApiOperation({ summary: 'Check if an email exists' })
   async checkEmail(@Query('email') email: string) {
-    if (!email) return { exists: false };
-    const exists = await this.usersService.checkEmail(email);
-    return { exists };
+    if (!email) return { exists: false, role: null };
+    return this.usersService.checkEmail(email);
   }
 
   @Get('me')
